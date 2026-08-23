@@ -26,12 +26,12 @@ an independently testable increment after the foundational phase.
 **Purpose**: Implement boundaries shared by every user story. No story implementation should begin
 until this phase is complete.
 
-- [ ] T005 Define typed application errors, stable exit-status categories, redaction helpers, and top-level error rendering in `src/error.rs`.
-- [ ] T006 Define the `clap` command model for discovery, `up`, `change`, `down`, `exit`, and reserved `clip` commands in `src/cli.rs`, including global `--help` and `--version` behavior without side effects.
-- [ ] T007 Define the subprocess abstraction and `TmuxClient` boundary in `src/tmux/client.rs`, including argv-safe command execution, captured stdout/stderr, status handling, and fake-runner injection for tests.
-- [ ] T008 Define terminal capability detection, TTY checks, and the `TerminalLauncher` boundary in `src/terminal/mod.rs` and `src/terminal/launcher.rs`; a missing launcher must be representable as a recoverable error.
-- [ ] T009 Define the application orchestration boundary and dependency injection points in `src/app.rs`, keeping command parsing, domain logic, terminal effects, and process-global state separate.
-- [ ] T010 Add module-level Rustdoc and lint policy scaffolding in `src/main.rs`, documenting any intentional lint allowances and preserving one clear home for each non-trivial type.
+- [X] T005 Define typed application errors, stable exit-status categories, redaction helpers, and top-level error rendering in `src/error.rs`.
+- [X] T006 Define the `clap` command model for discovery, `up`, `change`, `down`, `exit`, and reserved `clip` commands in `src/cli.rs`, including global `--help` and `--version` behavior without side effects.
+- [X] T007 Define the subprocess abstraction and `TmuxClient` boundary in `src/tmux/client.rs`, including argv-safe command execution, captured stdout/stderr, status handling, and fake-runner injection for tests.
+- [X] T008 Define terminal capability detection, TTY checks, and the `TerminalLauncher` boundary in `src/terminal/mod.rs` and `src/terminal/launcher.rs`; a missing launcher must be representable as a recoverable error.
+- [X] T009 Define the application orchestration boundary and dependency injection points in `src/app.rs`, keeping command parsing, domain logic, terminal effects, and process-global state separate.
+- [X] T010 Add module-level Rustdoc and lint policy scaffolding in `src/main.rs`, documenting any intentional lint allowances and preserving one clear home for each non-trivial type.
 
 **Checkpoint**: Command, process, terminal, error, and application boundaries compile independently and
 can be exercised with fake external commands.
@@ -49,14 +49,14 @@ calls, and correct unknown-command errors.
 
 ### Tests for User Story 1
 
-- [ ] T011 [P] [US1] Add process-level discovery tests in `tests/cli_help.rs` covering `ws`, `ws help`, `ws --help`, `ws help config`, and `ws --version` with external dependencies unavailable.
-- [ ] T012 [P] [US1] Add output-contract tests in `tests/cli_help.rs` for concise usage, command listings, configuration-reference content, version output, stdout/stderr separation, and unknown-command failures.
+- [X] T011 [P] [US1] Add process-level discovery tests in `tests/cli_help.rs` covering `ws`, `ws help`, `ws --help`, `ws help config`, and `ws --version` with external dependencies unavailable.
+- [X] T012 [P] [US1] Add output-contract tests in `tests/cli_help.rs` for concise usage, command listings, configuration-reference content, version output, stdout/stderr separation, and unknown-command failures.
 
 ### Implementation for User Story 1
 
-- [ ] T013 [US1] Implement side-effect-free help and version rendering in `src/help.rs`, including the command summary and a pointer to `ws help config`.
-- [ ] T014 [US1] Add the user-facing `.ws` language reference and canonical example to `doc/config-lang.md`, derived from `contracts/ws-schema.yaml`, for inclusion in `ws help config`.
-- [ ] T015 [US1] Wire `ws`, `help`, `--help`, `help config`, and `--version` through `src/app.rs` so they return before tmux, pass, GPG, configuration, or terminal-launcher access.
+- [X] T013 [US1] Implement side-effect-free help and version rendering in `src/help.rs`, including the command summary and a pointer to `ws help config`.
+- [X] T014 [US1] Add the user-facing `.ws` language reference and canonical example to `doc/config-lang.md`, derived from `contracts/ws-schema.yaml`, for inclusion in `ws help config`.
+- [X] T015 [US1] Wire `ws`, `help`, `--help`, `help config`, and `--version` through `src/app.rs` so they return before tmux, pass, GPG, configuration, or terminal-launcher access.
 
 **Checkpoint**: User Story 1 is independently usable and testable without tmux or password-store setup.
 
