@@ -1,0 +1,658 @@
+# Feature Specification: Configured tmux Workspace CLI
+
+**Feature Branch**: `001-tmux-workspace`
+
+**Created**: 2026-08-23
+
+**Status**: Draft
+
+**Input**: User description: Create `ws`, a CLI that starts or reconnects to a configured tmux workspace from a local `.ws` setup file, with secure access to the `pass` password store for future interactive commands.
+
+## Existing Implementation Review
+
+A local executable at `/home/ono/bin/ws` was inspected for interface ideas. Its help text establishes
+these useful command concepts:
+
+The new CLI adopts the explicit `up`, `down`, and `clip` command namespaces from the legacy help,
+with this normalized interface:
+
+```text
+ws
+ws --help
+ws help config
+ws up SESSION_NAME
+ws change SESSION_NAME
+ws down [SESSION_NAME] [--yes]
+ws clip NAMESPACE ITEM
+ws exit
+```
+
+The contract improves the legacy behavior in the following ways:
+
+- `ws --help`, `ws help`, and `ws --version` MUST be handled before tmux or password-store access.
+- `ws up SESSION_NAME` MUST take the session name as a positional argument instead of prompting for
+  it. This makes the command scriptable and prevents a hidden prompt in CI or redirected input.
+- When `ws up SESSION_NAME` is invoked from inside tmux, it MUST preserve the current client and open
+  the target workspace in a separate terminal client/window. `ws change SESSION_NAME` is the explicit
+  operation for switching the current client.
+- The project-local `.ws` file replaces hard-coded windows and infrastructure-specific startup
+  switches. Project services and integrations are represented by ordinary configured commands,
+  working directories, environment values, and optional custom scripts instead of built-in product
+  flags.
+- In the legacy help, `<workspace-name>` for `ws down` means the target tmux session name. The new
+  interface consistently calls this value `SESSION_NAME`.
+- Workspace startup MUST NOT eagerly retrieve and export every password-store value into tmux panes.
+  Credential-dependent commands MUST use `pass` on demand through the user’s existing GPG-agent flow.
+- `ws exit` is retained as a possible convenience alias for detaching, but is not required for the
+  workspace-layout MVP; normal tmux detach behavior remains available.
+
+## .ws Configuration Language (Normative MVP Reference)
+
+The `.ws` file is a UTF-8 YAML 1.2 document validated against the versioned schema below. This
+section is the normative user-facing configuration contract for the MVP and MUST be published
+through `ws help config`. The implementation MAY use a different internal representation, but its
+accepted YAML syntax, schema validation, and semantic behavior MUST match this reference.
+
+A `.ws` file contains one YAML document with a top-level mapping. YAML comments, quoted and plain
+scalar styles, sequences, and mappings MAY be used as defined by YAML 1.2. Custom YAML tags,
+multi-document streams, and duplicate mapping keys MUST be rejected. The schema is expressed below
+as YAML using JSON Schema 2020-12:
+
+```yaml
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:ws:workspace-schema:v1
+title: ws workspace definition
+type: object
+required: [version, windows]
+additionalProperties: false
+properties:
+  version:
+    const: 1
+  windows:
+    type: array
+    minItems: 1
+    items:
+      $ref: '#/$defs/window'
+$defs:
+  window:
+     type: object
+     required: [name, path]
+     additionalProperties: false
+     properties:
+       name:
+         type: string
+         minLength: 1
+       path:
+         type: string
+         minLength: 1
+       command:
+         type: string
+         minLength: 1
+       env:
+         type: object
+         propertyNames:
+           pattern: '^[A-Za-z_][A-Za-z0-9_]*$'
+         additionalProperties:
+           type: string
+       panes:
+         type: array
+         items:
+           $ref: '#/$defs/pane'
+   pane:
+     type: object
+     required: [pos]
+     additionalProperties: false
+     properties:
+       pos:
+         enum: [left, right, top, bottom]
+       id:
+         type: string
+         minLength: 1
+       path:
+         type: string
+         minLength: 1
+       command:
+         type: string
+         minLength: 1
+       env:
+         type: object
+         propertyNames:
+           pattern: '^[A-Za-z_][A-Za-z0-9_]*$'
+         additionalProperties:
+           type: string
+       panes:
+         type: array
+         items:
+           $ref: '#/$defs/pane'
+```
+
+The schema and these semantic rules are normative:
+
+- `version` MUST be `1`. A future incompatible syntax or semantic change MUST use a new language
+  version rather than silently changing the meaning of version 1 files.
+- Each window MUST have `name` and `path`. `command`, `env`, and `panes` are optional. A missing
+  command starts the user’s normal shell.
+- Each pane MUST have `pos`. `id`, `path`, `command`, `env`, and `panes` are optional. A pane without
+  a command starts the normal shell; a pane without a path inherits the containing window or pane
+  path.
+- `windows` and `panes` are ordered YAML sequences. Window order determines tmux window order, and
+  pane nesting determines the split hierarchy. Window names MUST be unique. Pane identifiers, when
+  supplied, MUST be unique within their containing window.
+- `env` is a mapping from environment-variable names to string values. Window values are inherited
+  by all descendant panes; pane values override inherited values. Values that look like YAML booleans,
+  numbers, or null SHOULD be quoted so they remain strings.
+- Relative paths resolve against the directory containing the `.ws` file. `left` and `right` create
+  horizontal splits; `top` and `bottom` create vertical splits relative to the containing pane. Pane
+  dimensions use tmux defaults unless a later language version adds sizing.
+- `command` is a shell command string interpreted by the user’s configured shell. It MAY invoke an
+  executable, custom Bash script, pipeline, or other shell operation. Generated tmux arguments such
+  as session names and paths MUST still be passed without unsafe shell interpolation.
+- Unknown properties, wrong YAML types, invalid positions, duplicate keys, missing required values,
+  and invalid environment names MUST be rejected with a source location when available. An empty
+  file is treated as the documented default workspace; a non-empty file MUST validate against the
+  schema.
+
+A canonical valid document is:
+
+```yaml
+version: 1
+windows:
+  - name: root
+    path: .
+    command: bash ./scripts/start-root.sh
+  - name: development
+    path: ./app
+    panes:
+      - pos: left
+        id: git
+        command: git status
+      - pos: right
+        id: services
+        panes:
+          - pos: top
+            id: logs
+            command: bash ./scripts/observe.sh
+            env:
+              APP_ENV: development
+          - pos: bottom
+            id: shell
+```
+
+The reference schema and example MUST remain synchronized across this specification, `ws help config`,
+parser tests, and user documentation.
+
+## User Scenarios & Testing *(mandatory)*
+
+### User Story 1 - Discover the command interface safely (Priority: P1)
+
+As a developer, I want to view `ws` help and version information without starting tmux or touching
+my password store, so that the CLI is usable for discovery even when optional runtime dependencies
+are unavailable.
+
+**Why this priority**: The reviewed implementation attempted password-store access before recognizing
+help-like input. That made basic discovery fail in environments without a usable GPG agent and could
+cause unexpected secret prompts.
+
+**Independent Test**: Run `ws`, `ws help`, `ws --help`, and `ws --version` with tmux unavailable and
+with a deliberately unusable password-store environment; verify each produces useful output and does
+not invoke either external dependency.
+
+**Acceptance Scenarios**:
+
+1. **Given** tmux and the password store are unavailable, **When** the user invokes `ws --help`,
+   **Then** `ws` prints command usage, examples, and the available command groups and exits zero.
+2. **Given** no command arguments are supplied, **When** the user invokes `ws`, **Then** `ws` prints
+   concise help and exits zero without prompting or changing any session.
+3. **Given** the user requests version information, **When** the user invokes `ws --version`,
+   **Then** `ws` prints the version and exits zero without reading `.ws`, contacting tmux, or
+   accessing `pass`.
+4. **Given** a command or option is unknown, **When** the user invokes it, **Then** `ws` reports the
+   error on stderr, includes a path to help, and exits non-zero without side effects.
+5. **Given** the user wants to learn the `.ws` language, **When** the user invokes `ws help config`,
+   **Then** `ws` prints the normative YAML schema, semantic rules, pane-position meanings, and a
+   complete example without contacting tmux or the password store.
+
+---
+
+### User Story 2 - Learn the .ws configuration language (Priority: P1)
+
+As a developer, I want a formal, locally accessible reference for `.ws` files so that I can author
+and validate workspace layouts without guessing parser behavior or searching external documentation.
+
+**Why this priority**: The configuration language is the project’s primary user interface. Defining
+its YAML schema early prevents incompatible interpretations across parser, examples, help, and tests.
+
+**Independent Test**: Run `ws help config` and verify that it contains the formal YAML schema, all
+supported keys and types, constraints, pane-position semantics, custom-command guidance, and the
+supplied nested-pane example; compare parser acceptance tests against the documented schema.
+
+**Acceptance Scenarios**:
+
+1. **Given** the user invokes `ws help config`, **When** the command runs without tmux or `pass`,
+   **Then** it prints the complete `.ws` language reference and exits zero without side effects.
+2. **Given** a `.ws` document is valid YAML and follows the schema and semantic rules, **When** the
+   user invokes `ws up SESSION_NAME`, **Then** the document is accepted and produces the described
+   workspace.
+3. **Given** a `.ws` document violates YAML syntax, schema types, required keys, nesting, or semantic
+   rules, **When** the user invokes `ws up SESSION_NAME`, **Then** `ws` rejects it with a source
+   location and does not create a new session.
+4. **Given** a window or pane uses `command: bash ./scripts/setup.sh`, **When** its command starts,
+   **Then** the script runs in the declaration’s resolved working directory with the declared
+   environment, allowing project-specific services and integrations without a built-in option.
+
+---
+
+### User Story 3 - Create or reconnect to a named workspace (Priority: P1)
+
+As a developer, I want `ws up SESSION_NAME` to either reinitialize a fresh workspace from the local
+`.ws` definition or reconnect to an existing tmux session, so that I can work on another project
+without disturbing the workspace I am currently using.
+
+**Why this priority**: Reconnecting must preserve an existing session, while starting a missing target
+from the local definition must provide a repeatable workspace setup. The operation must not clone live
+processes or panes from the current session.
+
+**Independent Test**: Start `SESSION_ONE`, invoke `ws up OTHER_SESSION` from inside it with both a
+missing and an existing `OTHER_SESSION`, and verify that the missing case applies `.ws` while the
+existing case ignores `.ws`; in both cases verify that `SESSION_ONE` remains attached and unchanged.
+
+**Acceptance Scenarios**:
+
+1. **Given** a tmux session exists with the requested name and `ws up SESSION_NAME` is invoked
+   outside tmux, **When** the command runs, **Then** `ws` attaches to that session without reading,
+   parsing, or applying the local `.ws` file.
+2. **Given** the user is in `SESSION_ONE` and `OTHER_SESSION` does not exist, **When** the user invokes
+   `ws up OTHER_SESSION`, **Then** `ws` reads and applies the local `.ws` definition, creates a
+   reinitialized `OTHER_SESSION` workspace in a separate terminal client/window, and leaves
+   `SESSION_ONE` attached and unchanged.
+3. **Given** the user is in `SESSION_ONE` and `OTHER_SESSION` already exists, **When** the user invokes
+   `ws up OTHER_SESSION`, **Then** `ws` opens a separate terminal client/window connected to
+   `OTHER_SESSION`, leaves `SESSION_ONE` attached and unchanged, and does not read, parse, or apply
+   the local `.ws` file.
+4. **Given** the requested session is already attached to the current tmux client, **When** the user
+   invokes `ws up SESSION_NAME`, **Then** `ws` does not switch the current client or create a
+   duplicate session, and reports or opens the documented separate terminal context.
+5. **Given** the session name is missing, whitespace-only, or invalid for tmux, **When** the user
+   invokes `ws up SESSION_NAME`, **Then** `ws` rejects the input with a concise diagnostic before
+   changing any session.
+6. **Given** two invocations race to start the same missing session, **When** both attempt startup,
+   **Then** at most one session is created and the losing invocation reconnects or reports a
+   recoverable conflict.
+
+---
+
+### User Story 4 - Start a default workspace (Priority: P1)
+
+As a developer, I want `ws up SESSION_NAME` to create a useful workspace even when no setup file is
+present, so that the tool has a predictable zero-configuration starting point.
+
+**Why this priority**: A single-window workspace is the minimum viable workflow and provides a safe
+fallback for every project.
+
+**Independent Test**: Invoke `ws up SESSION_NAME` from a directory without a `.ws` file and verify
+that a new tmux session has exactly one window rooted at the invocation directory and running the
+user’s normal shell.
+
+**Acceptance Scenarios**:
+
+1. **Given** no tmux session has the requested name and no local `.ws` file exists, **When** the user
+   invokes `ws up SESSION_NAME`, **Then** `ws` creates one tmux session with one usable window in
+   the current project directory.
+2. **Given** the default workspace was created, **When** the user enters the session, **Then** the
+   window has a stable name and provides the user’s normal interactive shell.
+3. **Given** tmux is unavailable, **When** the user invokes `ws up SESSION_NAME`, **Then** `ws` reports
+   that tmux could not be started or contacted and exits non-zero without accessing or exposing
+   credentials.
+
+---
+
+### User Story 5 - Start a configured workspace (Priority: P1)
+
+As a developer, I want a local `.ws` file to describe windows, panes, paths, commands, and environment
+variables so that one command recreates my project’s development layout.
+
+**Why this priority**: Configuration-driven setup is the core value of `ws`; it removes repeated
+manual tmux layout work while keeping each project’s setup local.
+
+**Independent Test**: Run `ws up SESSION_NAME` both outside tmux and from a disposable
+`SESSION_ONE` client in temporary projects containing a valid `.ws` file. Verify the resulting tmux
+session’s windows, pane hierarchy, working directories, commands, and environment values against the
+file, and verify that an in-tmux invocation preserves `SESSION_ONE`.
+
+**Acceptance Scenarios**:
+
+1. **Given** a valid `.ws` file, **When** no session with the requested name exists and the user
+   invokes `ws up SESSION_NAME`, **Then** `ws` creates the session from the file in declaration order.
+2. **Given** a window declaration with a name, path, and command, **When** the workspace starts,
+   **Then** the corresponding window has that name, starts in that path, and runs that command.
+3. **Given** a nested pane declaration, **When** the workspace starts, **Then** `ws` creates the
+   requested split direction and recursively creates its child panes in the declared hierarchy.
+4. **Given** an environment declaration in a window or pane, **When** its command starts, **Then**
+   the command receives that value, with a more specific pane value overriding an inherited window
+   value.
+5. **Given** a valid configuration with multiple windows and panes, **When** workspace creation
+   completes, **Then** the user is connected to the new session with the first declared window selected.
+6. **Given** the user is in `SESSION_ONE` and `OTHER_SESSION` does not exist, **When** the user invokes
+   `ws up OTHER_SESSION`, **Then** `ws` creates `OTHER_SESSION` from the local `.ws` file and opens it
+   in a separate terminal client/window without switching or modifying `SESSION_ONE`.
+7. **Given** a configured command contains shell syntax such as a home-directory shortcut, pipe, or
+   redirect, **When** the command starts, **Then** it is interpreted by the documented user shell as
+   a project configuration command, while generated session names and paths are never shell-expanded
+   through string interpolation.
+
+---
+
+### User Story 6 - Diagnose invalid workspace setup (Priority: P2)
+
+As a developer, I want invalid setup files to fail clearly before a session is created so that
+configuration mistakes do not leave behind a partially built workspace.
+
+**Why this priority**: Configuration errors are expected during authoring. Clear, non-destructive
+failures protect existing sessions and shorten feedback cycles.
+
+**Independent Test**: Supply malformed, incomplete, or semantically invalid `.ws` files and verify
+that each failure identifies the file and location when available, exits non-zero, and leaves no
+newly created session with the requested name.
+
+**Acceptance Scenarios**:
+
+1. **Given** a `.ws` file contains invalid syntax or unsupported fields, **When** the user invokes
+   `ws up SESSION_NAME`, **Then** `ws` reports the problem with a location or relevant field and does
+   not create the session.
+2. **Given** a referenced working directory does not exist, **When** the user invokes
+   `ws up SESSION_NAME`, **Then** `ws` reports which declaration failed and does not silently
+   substitute another directory.
+3. **Given** a configured command cannot be started, **When** the user invokes `ws up SESSION_NAME`,
+   **Then** `ws` reports the affected window or pane and returns non-zero without printing secret
+   values.
+4. **Given** the file is valid but session creation fails partway through, **When** startup aborts,
+   **Then** `ws` cleans up only the new session it created and leaves pre-existing sessions untouched.
+
+---
+
+### User Story 7 - Manage and change workspaces explicitly (Priority: P2)
+
+As a developer, I want to detach from, change to, or take down a named tmux session through documented
+commands so that workspace lifecycle operations do not require memorizing raw tmux commands.
+
+**Why this priority**: The existing implementation demonstrates that lifecycle commands are part of
+the expected user experience, while the new `up` flow provides the safer configuration behavior.
+
+**Independent Test**: Create a disposable tmux session, invoke the lifecycle commands from inside and
+outside tmux, and verify the target session state and confirmation behavior.
+
+**Acceptance Scenarios**:
+
+1. **Given** the user is inside a tmux session, **When** the user invokes `ws exit`, **Then** `ws`
+   detaches the client without killing the session and returns a documented status.
+2. **Given** a named session exists, **When** the user invokes `ws down SESSION_NAME`, **Then** `ws`
+   requests confirmation in an interactive terminal, kills only that named session after approval,
+   and reports success.
+3. **Given** `ws down SESSION_NAME` is run without a TTY, **When** `--yes` is not supplied, **Then**
+   `ws` refuses the destructive action and explains how to provide explicit non-interactive consent.
+4. **Given** a named session exists and the user supplies `ws down SESSION_NAME --yes`, **When** the
+   command runs, **Then** `ws` kills only that validated session without prompting and reports success.
+5. **Given** the requested session does not exist, **When** the user invokes `ws down SESSION_NAME`,
+   **Then** `ws` reports that no such session exists and does not affect other sessions.
+6. **Given** no session name is supplied to `ws down` while the user is inside tmux, **When** the user
+   invokes it interactively, **Then** `ws` identifies the current session and asks for explicit
+   confirmation before killing it.
+7. **Given** the user is in `SESSION_ONE` and `OTHER_SESSION` exists, **When** the user invokes
+   `ws change OTHER_SESSION`, **Then** `ws` switches the current tmux client to `OTHER_SESSION` and
+   leaves `SESSION_ONE` running in the background.
+8. **Given** the user is in `SESSION_ONE` and `OTHER_SESSION` does not exist, **When** the user invokes
+   `ws change OTHER_SESSION`, **Then** `ws` returns a non-zero recoverable error, keeps the current
+   client in `SESSION_ONE`, and does not read or apply `.ws`.
+9. **Given** the user is not inside tmux, **When** the user invokes `ws change OTHER_SESSION`,
+   **Then** `ws` reports that changing the current tmux client is unavailable and does not create or
+   modify a session.
+
+---
+
+### User Story 8 - Use secure future interactive commands (Priority: P3)
+
+As a developer, I want a consistent command namespace for utilities such as `ws clip git ssh`, so
+that password-backed workflows can be added without placing secrets into every tmux pane.
+
+**Why this priority**: The reviewed implementation shows the value of commands that copy selected Git
+or Docker credentials, but the detailed command and credential mapping should be specified separately
+from workspace creation.
+
+**Independent Test**: Run help and an unsupported utility command with a controlled password-store
+provider, verify that help never accesses the provider, and verify that a credential-dependent command
+requests only the selected entry and never exports all entries to a session.
+
+**Acceptance Scenarios**:
+
+1. **Given** the user invokes `ws clip NAMESPACE ITEM`, **When** that utility is implemented, **Then**
+   it requests only the credential associated with that namespace and item and sends it to the
+   selected clipboard provider without printing it.
+2. **Given** the user invokes an interactive utility that has not yet been specified, **When** `ws`
+   parses it, **Then** `ws` reports that the command is unavailable or not yet supported and does not
+   alter a tmux session.
+3. **Given** the local `pass` store is locked or unavailable, **When** a credential-dependent command
+   runs, **Then** `ws` reports an actionable failure without showing the master passphrase, entry
+   value, or provider internals containing secret material.
+4. **Given** a workspace command does not require credentials, **When** the user invokes
+   `ws up SESSION_NAME`, **Then** `ws` does not access `pass`, set secret environment variables, or
+   place credentials in tmux commands or shell history.
+
+**Security design decision**: `ws` MUST use the user’s existing `pass` and GPG-agent flow on demand;
+it MUST NOT receive, cache, or export the password-store master passphrase. A future command may
+invoke `pass show` for one approved entry and pipe the result directly to its destination, such as a
+clipboard provider. The detailed entry mapping, clipboard provider selection, clearing behavior, and
+command-specific authorization remain separate specifications.
+
+---
+
+### Edge Cases
+
+- A help or version request is made while tmux is missing, `pass` is locked, or GPG is unavailable:
+  help and version still succeed without touching those dependencies.
+- A session with the requested name exists while the `.ws` file is missing, malformed, or changed:
+  reconnect and ignore the file.
+- Two invocations race to create the same session: one must win cleanly and the other must reconnect
+  or report a recoverable conflict without producing a second session.
+- The `.ws` file is empty: use the default single-window workspace or report a documented equivalent,
+  but never create zero usable windows.
+- The `.ws` file uses tabs, inconsistent indentation, duplicate window names, duplicate pane
+  identifiers, unsupported pane positions, or an invalid environment assignment.
+- A relative path, command, or environment value contains spaces, `=`, `:`, shell metacharacters, or
+  a newline; values must not be silently truncated or reinterpreted.
+- A configured path is outside the project directory, is inaccessible, or disappears between
+  validation and pane creation.
+- A configured command exits immediately, prompts for input, or is unavailable on the host.
+- The requested session name contains characters that tmux accepts but that could be unsafe when
+  passed through a shell; generated arguments must be passed without shell interpolation.
+- The invocation runs inside tmux, outside tmux, with stdin redirected, or without color/interactive
+  terminal capabilities.
+- `ws up OTHER_SESSION` is invoked from inside tmux when a separate terminal client/window launcher is
+  unavailable; the command must fail recoverably without switching or modifying the current session.
+- `ws change` is invoked outside tmux, targets a missing session, or targets the current session.
+- `ws down` is requested without a session name inside or outside tmux, with and without a TTY.
+- The password store is locked, missing, configured for a different user, or returns a failing status;
+  diagnostics must not include secret material.
+- A configured environment value contains a secret: it must not be printed by diagnostics or
+  persisted outside the child process that needs it.
+- The clipboard provider is unavailable, supports a different terminal environment, or exits before
+  accepting the selected value; the secret must not fall back to stdout or an error message.
+
+## Requirements *(mandatory)*
+
+### Functional Requirements
+
+- **FR-001**: The system MUST expose these top-level command modes: help/version discovery, `up`,
+  `change`, `down`, `exit`, and a reserved `clip` namespace.
+- **FR-002**: The workspace-start command MUST be `ws up SESSION_NAME`, with exactly one required
+  positional session name; it MUST NOT prompt for the name.
+- **FR-003**: The system MUST provide `ws`, `ws help`, and `ws --help` as side-effect-free help paths,
+  `ws help config` as the side-effect-free `.ws` language reference, and `ws --version` as a
+  side-effect-free version path.
+- **FR-004**: Help, configuration-reference, and version paths MUST NOT read project `.ws` files,
+  contact tmux, invoke `pass`, access GPG, prompt for input, or write credentials anywhere.
+- **FR-005**: The system MUST reject missing, empty, whitespace-only, or invalid session names with a
+  non-zero exit status and actionable help.
+- **FR-006**: `ws up` MUST check for an existing tmux session by the requested name before reading or
+  parsing the local `.ws` file.
+- **FR-007**: If the requested session exists, `ws up` MUST connect to that session and MUST ignore
+  the `.ws` file, including its syntax and filesystem references. Outside tmux it attaches directly;
+  inside tmux it uses a separate terminal client/window without switching the current client.
+- **FR-008**: If the requested session does not exist and no `.ws` file is present in the current
+  project directory, the system MUST create exactly one usable tmux window in that directory using
+  the user’s normal interactive shell.
+- **FR-009**: The system MUST locate the default setup file as `.ws` in the current project directory,
+  and all relative paths in that file MUST resolve relative to the setup file’s directory.
+- **FR-010**: The system MUST parse a YAML `.ws` document conforming to the versioned schema,
+  including window declarations, window names, paths, commands, nested pane declarations, pane
+  positions, pane identifiers, and environment mappings.
+- **FR-011**: The system MUST preserve declaration order for windows and nested panes, and MUST select
+  the first declared window when the new session is opened.
+- **FR-012**: The system MUST support pane positions `left`, `right`, `top`, and `bottom`, applying
+  each position to the split containing that pane.
+- **FR-013**: Configured command text MUST use documented user-shell semantics so commands such as
+  `~/.bin/service_observe` or `bash ./scripts/setup.sh` work, while session names, paths, and
+  generated tmux arguments MUST never be constructed through unsafe shell interpolation.
+- **FR-014**: The system MUST validate the complete setup before creating a new session, and invalid
+  configuration MUST NOT leave a newly created session behind.
+- **FR-015**: The system MUST report configuration errors with the setup file path and a line or field
+  location whenever available, and MUST identify the affected window or pane for runtime failures.
+- **FR-016**: The system MUST make each declared path the working directory for its window or pane
+  command and MUST fail clearly when the path cannot be used.
+- **FR-017**: The system MUST apply environment values to the declared command scope, with pane values
+  overriding inherited window values, and MUST split assignments only at the first `=` character.
+- **FR-018**: The system MUST create a nested pane hierarchy without requiring users to encode tmux
+  implementation details in the setup file.
+- **FR-019**: When invoked outside tmux, `ws up` MUST attach to the newly created or existing workspace.
+  When invoked inside tmux, `ws up` MUST preserve the current client and open the newly created or
+  existing target session in a separate terminal client/window; it MUST NOT silently nest a tmux
+  client. When the target is missing, `ws up` MUST apply the local `.ws` definition before opening
+  the target, creating a fresh workspace rather than cloning live panes or processes.
+- **FR-020**: `ws change SESSION_NAME` MUST require an existing target session, switch the current
+  tmux client to it, and leave the previously selected session running in the background. It MUST
+  never read or apply `.ws` while changing sessions.
+- **FR-021**: `ws change SESSION_NAME` MUST return a recoverable non-zero error and leave the current
+  client unchanged when the target does not exist or when invoked outside tmux.
+- **FR-022**: `ws exit` MUST detach the current client without killing the session and MUST fail clearly
+  when no tmux client is attached.
+- **FR-023**: `ws down SESSION_NAME` MUST require explicit confirmation before killing a session when
+  interactive, and MUST require the `--yes` flag as explicit non-interactive consent when no TTY is
+  available. `--yes` MUST be scoped to `down` and MUST NOT bypass session-name validation.
+- **FR-024**: `ws down` without a name MAY target the current tmux session only when invoked inside
+  tmux and after interactive confirmation; `--yes` MUST NOT enable nameless destructive targeting,
+  and the command MUST not guess a target outside tmux.
+- **FR-025**: The system MUST establish password-store access only for a command that needs it and
+  MUST use the existing `pass`/GPG-agent flow rather than receiving or caching the master passphrase.
+- **FR-026**: The system MUST NOT eagerly retrieve or export all password-store entries into the tmux
+  server, pane environments, shell startup files, command arguments, or shell history.
+- **FR-027**: A credential-dependent utility MUST request only the selected entry and MUST stream the
+  selected value directly to its approved destination without emitting it on stdout or stderr.
+- **FR-028**: The system MUST keep master passwords and password-store entries out of stdout, stderr,
+  logs, shell commands, tmux command strings, persisted configuration, and unrelated environments.
+- **FR-029**: The system MUST provide discoverable help for `up`, `change`, `down`, `exit`, and the
+  reserved `clip` namespace; detailed future utility behavior MAY be delivered in separate
+  specifications.
+- **FR-030**: The system MUST keep normal results on stdout and diagnostics, progress, and logging on
+  stderr; secret values MUST be emitted to neither stream.
+- **FR-031**: The system MUST return stable, documented non-zero statuses for invalid CLI input,
+  invalid setup, unavailable tmux, failed command setup, destructive-action refusal, and credential
+  failures.
+- **FR-032**: The system MUST support non-TTY invocation without hanging on an unexpected prompt;
+  interactive behavior MUST be capability-aware and have a documented non-interactive path.
+- **FR-033**: The system MUST expose the normative `.ws` YAML schema and semantic reference through
+  `ws help config`, including every key, type, required-key rule, nesting rule, position meaning,
+  path-resolution rule, command behavior, and a complete example.
+- **FR-034**: The implementation’s parser, examples, help reference, and acceptance tests MUST use
+  the same `.ws` language contract; changes to syntax MUST be documented as a language-versioned
+  compatibility change.
+- **FR-035**: The system MUST allow a `command:` field on every window and pane to execute an arbitrary
+  project-provided command, including a custom Bash script, in the declaration’s resolved working
+  directory and environment.
+- **FR-036**: The workspace-layout MVP MUST NOT provide built-in Kubernetes, OpenShift, or NATS
+  startup options. Project-specific integrations MUST be expressed through `.ws` windows, panes,
+  environment values, and custom commands or scripts.
+- **FR-037**: Any `workspace-name` terminology retained for compatibility or documentation MUST be
+  defined as the tmux session name, and all new help and requirements MUST use `SESSION_NAME`.
+- **FR-038**: The help output MUST explain that a terminal window/client is separate from a tmux
+  window, and MUST document the behavior and recoverable failure mode when `ws up` cannot launch a
+  separate terminal client from inside tmux.
+
+### Key Entities *(include if data involved)*
+
+- **Workspace Session**: A named tmux session that can be newly created from a definition or resumed
+  without reapplying configuration.
+- **Workspace Definition**: The project-local `.ws` document containing ordered window and pane
+  declarations.
+- **Window Declaration**: A named working context with a path, optional command, inherited environment
+  values, and zero or more nested pane declarations.
+- **Pane Declaration**: A recursively nestable terminal context with a split position, optional
+  identifier, path/command/environment details, and child panes.
+- **Credential Context**: A bounded capability represented by the existing password-store provider,
+  allowing an approved utility to request one named value without exposing the master passphrase.
+- **Interactive Command**: A `ws` utility command that performs a narrowly defined operation, such
+  as copying a selected password-store entry.
+
+## Success Criteria *(mandatory)*
+
+### Measurable Outcomes
+
+- **SC-001**: With tmux and the password store unavailable, all five discovery/reference
+  invocations—`ws`, `ws help`, `ws --help`, `ws help config`, and `ws --version`—complete successfully
+  without prompting or contacting either dependency.
+- **SC-002**: In an environment with tmux available, a valid setup creates a session whose windows,
+  panes, names, working directories, commands, and environment values match the setup file in 100%
+  of automated acceptance runs.
+- **SC-003**: When a named session already exists, 100% of automated `up` tests connect to that
+  session without parsing the `.ws` file or creating an additional session; in-tmux tests preserve
+  the current client and use a separate terminal context.
+- **SC-004**: A no-configuration invocation creates exactly one usable window in 100% of automated
+  default-mode tests.
+- **SC-005**: 100% of malformed setup tests fail before leaving a newly created session, and each
+  diagnostic identifies the invalid declaration or its nearest available location.
+- **SC-006**: In credential-handling tests, zero password or password-store entry values appear in
+  captured stdout, stderr, logs, command arguments, tmux command strings, or persisted workspace
+  files, and startup of a non-credential command makes zero password-store requests.
+- **SC-007**: In non-TTY tests, the CLI never waits indefinitely for interactive input and exits with a
+  documented result within 5 seconds after the external dependency returns.
+- **SC-008**: Destructive lifecycle tests cannot kill a session without interactive confirmation or
+  the explicitly scoped `ws down SESSION_NAME --yes` non-interactive consent flag.
+- **SC-009**: In 100% of tests starting from `SESSION_ONE`, `ws up OTHER_SESSION` leaves
+  `SESSION_ONE` attached and unchanged; a missing target applies `.ws` and opens the reinitialized
+  workspace in a separate terminal client/window, while an existing target is opened without applying
+  `.ws`.
+- **SC-010**: In 100% of tests starting from `SESSION_ONE`, `ws change OTHER_SESSION` switches to an
+  existing `OTHER_SESSION`, while a missing target leaves `SESSION_ONE` active and returns a
+  recoverable error.
+- **SC-011**: A new developer can create a two-window, nested-pane workspace from the example language
+  using one local `.ws` file and one `ws up SESSION_NAME` invocation, without manually issuing tmux
+  layout commands.
+- **SC-012**: The help output describes every supported MVP command, its required positional arguments,
+  its side effects, the distinction between `up` and `change`, and at least one configured-workspace
+  example without relying on local credentials.
+
+## Assumptions
+
+- The user has tmux installed and has permission to connect to its server; supported tmux versions
+  will be documented during planning.
+- The current working directory is the project root for the default `.ws` lookup, and each project
+  owns its own setup file.
+- A missing `.ws` is a supported default case, not an error; an empty `.ws` follows the same default
+  behavior unless planning establishes a stricter rule.
+- The user’s normal shell is available through the host environment and is used only when a window
+  or pane has no explicit command.
+- The setup language is intentionally small and uses standard YAML 1.2. The JSON Schema and semantic
+  rules in this specification are the normative MVP contract and are also published by `ws help
+  config`; future syntax or semantic changes require a language-versioned compatibility decision.
+- `pass` and its GPG-agent integration are already installed and configured for the user. `ws` uses
+  that existing unlock flow and does not implement a password-store format or master-passphrase cache.
+- Future credential commands may map friendly names such as `git ssh` and `docker token` to pass
+  entries, but the mapping and supported names are not part of the workspace-layout MVP.
+- Clipboard integration and the detailed behavior of `ws clip git ssh` are separate specifications;
+  the current feature defines only the command namespace and security boundary.
+- The first implementation targets local Unix-like development environments; cross-platform terminal
+  behavior, clipboard providers, separate-terminal launchers, and supported tmux versions must be
+  confirmed during planning.
+- A terminal window/client means a separately attachable terminal context, not an additional window in
+  the current tmux session. `ws up` must use a supported launcher or return a recoverable error rather
+  than silently nesting tmux.
+- `ws down` is included because it is part of the established command model, but safe confirmation
+  behavior is more important than preserving the old implementation’s implicit current-session target.

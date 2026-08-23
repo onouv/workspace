@@ -1,8 +1,8 @@
 <!--
 Sync Impact Report
-- Version change: 1.0.0 -> 1.1.0
-- Modified principles: VI. 
-- Added sections: core principle VI.
+- Version change: 1.2.0 -> 1.3.0
+- Modified principles: none.
+- Added sections: core principle VIII, Secret Material Isolation and Repository Hygiene.
 - Removed sections: none.
 - Follow-up TODOs: none.
 -->
@@ -73,6 +73,61 @@ When stopping, the agent MUST preserve the work completed, report the actions at
 
 Agents MUST apply a brief but concise style when producing output to the prompt CLI. I do not want to be swamped in text.
 
+### VII. Idiomatic Rust, Readability, and Maintainability
+Rust code MUST follow the conventions of the Rust API Guidelines and be formatted with
+`rustfmt`; formatting MUST NOT be bypassed to conceal unclear structure. Code MUST pass
+Clippy with warnings treated as errors, and lint suppressions MUST be narrow, documented,
+and justified at the smallest applicable scope. Names MUST describe domain intent, functions
+MUST remain focused, and modules MUST have clear responsibilities. Prefer straightforward,
+idiomatic Rust over clever abstractions, dense expressions, unnecessary macros, or premature
+generality. Ownership, borrowing, lifetimes, and error boundaries MUST be expressed in a way
+that a maintainer can understand without reconstructing hidden invariants.
+
+Public types, functions, commands, configuration keys, and non-obvious invariants MUST have
+concise Rustdoc or nearby documentation. Comments MUST explain rationale, safety constraints,
+or externally imposed behavior rather than restating syntax. Implementations MUST avoid
+unnecessary cloning, allocation, dynamic dispatch, and `unwrap` or `expect` on recoverable
+runtime paths; when one is necessary, its invariant MUST be explicit and locally verifiable.
+Unsafe code remains subject to the documentation and review requirements in this constitution.
+
+Changes MUST preserve a coherent module and dependency structure, remove dead code, and keep
+related behavior close together. A reviewer MUST be able to trace a CLI request through parsing,
+validation, application logic, and external effects without relying on implicit global state.
+Complexity, non-idiomatic patterns, and deviations from standard Rust style MUST have a clear
+benefit documented in the change description and focused tests where behavior is affected.
+Modules MUST be of a readable size. Each module is a separate file. Each non-trivial type (struct) MUST be in its own file.
+
+### VIII. Secret Material Isolation and Repository Hygiene
+Secrets of any kind MUST NOT be committed to the repository, Git index, Git history,
+release artifacts, examples, fixtures, logs, or documentation. Secrets include passwords,
+passphrases, API tokens, access keys, private keys, certificates containing private material,
+cookies, session credentials, and production or personal data requiring protection. Any
+secret that must exist as a project-local file MUST be stored under a project-local
+`.secrets/` directory, which MAY contain further subdirectories for organization. Secrets
+MAY instead remain in an approved external secret manager such as `pass` with GPG-agent, an
+OS keychain, or a CI secret store; external secret-manager contents MUST NOT be copied into
+the repository’s `.secrets/` directory.
+
+The repository’s `.gitignore` MUST exclude `.secrets/` and all of its descendants at every
+level, including nested `.secrets` directories, and MUST NOT contain negation rules that
+re-include secret files. The exclusion MUST be present before any secret-bearing file is
+created. Contributors MUST NOT use force-add, alternate Git paths, generated artifacts, or
+renames to bypass these exclusions. The `.gitignore` file itself MUST remain reviewed and
+tracked.
+
+Secret values MUST NOT be placed in command-line arguments, shell history, ordinary
+configuration, source code, test snapshots, tmux environment settings, process logs, or
+stdout/stderr. Tests MUST use generated ephemeral values in temporary directories and MUST
+prove that credentials are not persisted. Documentation and sample `.secrets` layouts MUST
+contain placeholders only, never live or realistic credentials.
+
+Changes that add or modify secret handling MUST include a review of storage location,
+permissions, lifetime, redaction, and cleanup behavior. Before review and in CI, the project
+MUST verify that no secret-bearing path is tracked and SHOULD run an appropriate secret
+scanner. If a secret is suspected to have entered Git history, it MUST be revoked or rotated
+and removed from history through the project’s approved incident procedure; deleting the
+working-tree file alone is insufficient.
+
 ## Technology and Runtime Constraints
 
 The project MUST use the stable Rust toolchain and Rust 2024 edition unless a documented
@@ -103,9 +158,11 @@ an existing command, output format, exit code, configuration key, or destructive
 safeguard MUST document the compatibility impact and migration path.
 
 Reviews MUST check the constitution, test coverage of the observable contract, failure
-safety, stream separation, and non-TTY behavior. Performance work MUST include a
-reproducible measurement or benchmark before introducing complexity. Documentation and
-examples MUST use commands that can run without undisclosed local state or credentials.
+safety, stream separation, non-TTY behavior, and secret-storage rules. Reviews MUST verify
+that `.gitignore` excludes `.secrets/` and descendants before any local secret path is used.
+Performance work MUST include a reproducible measurement or benchmark before introducing
+complexity. Documentation and examples MUST use commands that can run without undisclosed
+local state or credentials.
 
 ## Governance
 
@@ -122,4 +179,4 @@ wording without changing governance intent. Maintainers MUST review compliance d
 review and may reject changes that lack the required validation evidence. When this document
 conflicts with a lower-level guide, the constitution takes precedence until formally amended.
 
-**Version**: 1.1.0 | **Ratified**: 2026-08-23 | **Last Amended**: 2026-08-23
+**Version**: 1.3.0 | **Ratified**: 2026-08-23 | **Last Amended**: 2026-08-23
