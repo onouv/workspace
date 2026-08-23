@@ -1,0 +1,114 @@
+<!--
+Sync Impact Report
+- Version change: template/unversioned -> 1.0.0
+- Modified principles: all five template principle slots replaced with CLI-specific
+  engineering principles.
+- Added sections: Technology and Runtime Constraints; Development Workflow and Quality Gates.
+- Removed sections: none.
+- Follow-up TODOs: none.
+-->
+
+# Interactive CLI Constitution
+
+## Core Principles
+
+### I. CLI-First, Discoverable User Experience
+The command-line interface MUST be specified through `clap`'s derive API and remain the
+single source of truth for commands, arguments, options, defaults, help text, and shell
+completion metadata. Every user-facing operation MUST have a discoverable `--help` path,
+clear validation messages, and stable exit-status semantics. Interactive prompts MUST be
+implemented explicitly with a terminal-aware crate such as `dialoguer`; prompts MUST NOT
+appear when input is redirected or when an explicit non-interactive mode is selected. The
+CLI MUST keep normal results on stdout and diagnostics, progress, and logging on stderr so
+that output can be safely piped and scripted.
+
+### II. Testable Core, Thin Adapters
+Business rules and application behavior MUST be separated from `clap`, terminal rendering,
+and process-global state. Command handlers MUST translate parsed arguments into calls to
+testable application services, and domain code MUST NOT call `std::process::exit`, read
+from global stdin, or write directly to terminal streams. Terminal concerns MAY use
+`console`, `indicatif`, `dialoguer`, or `crossterm` when the interaction requires them, but
+those concerns MUST remain at the CLI boundary. This separation keeps interactive behavior
+usable from automation and allows core behavior to be tested without a real terminal.
+
+### III. Explicit Errors and Safe Failure
+Expected failures MUST be represented as `Result` values and MUST produce actionable,
+non-sensitive diagnostics without panicking. Domain and reusable modules SHOULD define
+specific errors with `thiserror`; the binary boundary MAY use `anyhow` for context-rich
+reporting and for mapping failures to documented exit codes. User input, filesystem,
+configuration, and external-process failures MUST identify the relevant operation and
+suggest a corrective action where practical. Secrets, tokens, and private input MUST NOT
+be emitted in errors, logs, traces, or shell commands. Destructive operations MUST require
+an explicit confirmation or an equivalent non-interactive opt-in flag.
+
+### IV. Behavior Is Defined by Tests
+Every new command, option, prompt flow, output contract, and error-path change MUST include
+or update automated tests that describe its observable behavior. Unit tests MUST cover
+pure application and domain logic; CLI integration tests MUST use `assert_cmd` and
+`predicates` or equivalent process-level tools to verify arguments, stdout, stderr, and
+exit codes. Temporary files and directories MUST use `tempfile`, and tests MUST avoid
+network access, wall-clock assumptions, and shared mutable state unless the dependency is
+explicitly isolated. Snapshot testing with `insta` MAY be used for deliberately stable,
+substantial output, but snapshots MUST be reviewed as part of the change.
+Tests MUST be built according to behavior driven testing, i.e. the MUST have clauses "Given ...", "When ...", "Then ...", in that order. This structure MUST show up in the implementtaion as well as the outputs.
+
+### V. Portable, Accessible Terminal Behavior
+The tool MUST work correctly on supported Unix and Windows terminals and in a non-TTY
+context such as a pipe, CI job, or redirected input. Color, spinners, progress bars, and
+interactive cursor control MUST be capability-aware and MUST have a plain-text or disabled
+fallback; color SHOULD be controllable through conventional flags or environment behavior.
+Human-readable output MUST be concise and legible, while machine-consumable output MUST
+use an explicitly selected stable format such as JSON via `serde` and `serde_json` when
+that format is required. Locale, terminal width, and ANSI support MUST NOT change the
+meaning of results.
+
+## Technology and Runtime Constraints
+
+The project MUST use the stable Rust toolchain and Rust 2024 edition unless a documented
+exception is approved. `clap` with derive support is the required argument-parser and
+command-modeling foundation. Crates MUST be selected by responsibility rather than added
+speculatively: `thiserror` for typed domain errors, `anyhow` at the executable boundary,
+`dialoguer` for simple prompts, `console` or `crossterm` for terminal capability handling,
+`indicatif` for progress reporting, and `serde` with a format-specific crate for explicit
+serialization needs are approved defaults. `assert_cmd`, `predicates`, and `tempfile` are
+approved test dependencies; `insta` and `criterion` MAY be added when their maintenance
+and review costs are justified.
+
+Dependencies MUST be kept current within their compatible major versions, committed in
+`Cargo.lock` for this executable, and reviewed for licensing, maintenance, and security
+impact. The project MUST avoid unsafe code unless its necessity, invariants, and review
+plan are documented. Configuration and environment behavior MUST be documented rather than
+implicitly inferred from incidental crate defaults.
+
+## Development Workflow and Quality Gates
+
+Changes MUST state the affected CLI contract and include user-visible help or documentation
+updates when commands or options change. Before review, contributors MUST run `cargo fmt
+--check`, `cargo check`, `cargo clippy --all-targets --all-features -- -D warnings`, and
+`cargo test --all-targets --all-features`; CI MUST run the same gates on every change.
+Integration tests that invoke the binary MUST verify both interactive-capable and
+non-interactive paths for behavior that differs by TTY availability. A change that alters
+an existing command, output format, exit code, configuration key, or destructive-action
+safeguard MUST document the compatibility impact and migration path.
+
+Reviews MUST check the constitution, test coverage of the observable contract, failure
+safety, stream separation, and non-TTY behavior. Performance work MUST include a
+reproducible measurement or benchmark before introducing complexity. Documentation and
+examples MUST use commands that can run without undisclosed local state or credentials.
+
+## Governance
+
+This constitution is the governing engineering standard for the project. A pull request
+that conflicts with it MUST either be revised or include an explicit exception explaining
+the trade-off, affected guarantees, scope, owner, and expiration or removal plan. Exceptions
+require maintainer approval and MUST NOT weaken security or data-loss safeguards silently.
+
+Amendments MUST update this file, include a Sync Impact Report, increment the semantic
+version, and describe any required code, test, documentation, or migration work. Versioning
+follows semantic versioning: a major version removes or materially redefines a principle; a
+minor version adds a principle or materially expands requirements; a patch version clarifies
+wording without changing governance intent. Maintainers MUST review compliance during code
+review and may reject changes that lack the required validation evidence. When this document
+conflicts with a lower-level guide, the constitution takes precedence until formally amended.
+
+**Version**: 1.0.0 | **Ratified**: 2026-08-23 | **Last Amended**: 2026-08-23
