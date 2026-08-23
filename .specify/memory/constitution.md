@@ -1,9 +1,8 @@
 <!--
 Sync Impact Report
-- Version change: template/unversioned -> 1.0.0
-- Modified principles: all five template principle slots replaced with CLI-specific
-  engineering principles.
-- Added sections: Technology and Runtime Constraints; Development Workflow and Quality Gates.
+- Version change: 1.0.0 -> 1.1.0
+- Modified principles: VI. 
+- Added sections: core principle VI.
 - Removed sections: none.
 - Follow-up TODOs: none.
 -->
@@ -62,6 +61,18 @@ use an explicitly selected stable format such as JSON via `serde` and `serde_jso
 that format is required. Locale, terminal width, and ANSI support MUST NOT change the
 meaning of results.
 
+### VI. Bounded Agent Autonomy and Human Checkpoints
+
+Agent-assisted work MUST operate within an explicit scope, finite tool or iteration budget, and clear completion criteria. If unclear Agents MUST retrieve that information from user before proceeding. Agents MUST NOT execute unbounded loops, recursively invoke agents or workflows, run indefinite processes, or repeatedly retry an unchanged failure. Agents MUST NOT work while the zed editor is closed.
+
+Unless a task explicitly defines stricter limits, an agent MUST stop after three failed attempts at the same operation or three iterations without measurable progress.
+
+Agents MUST pause and request human approval before performing destructive or irreversible actions, modifying files outside the declared scope, accessing external services, sending data, changing dependencies or security controls, or materially expanding the task. A human MUST remain responsible for final acceptance of changes.
+
+When stopping, the agent MUST preserve the work completed, report the actions attempted, the reason for stopping, remaining risks or blockers, and a recommended next step. Tool budgets, retry limits, and approval checkpoints MUST be reviewable from the task record or execution log.
+
+Agents MUST apply a brief but concise style when producing output to the prompt CLI. I do not want to be swamped in text.
+
 ## Technology and Runtime Constraints
 
 The project MUST use the stable Rust toolchain and Rust 2024 edition unless a documented
@@ -111,4 +122,4 @@ wording without changing governance intent. Maintainers MUST review compliance d
 review and may reject changes that lack the required validation evidence. When this document
 conflicts with a lower-level guide, the constitution takes precedence until formally amended.
 
-**Version**: 1.0.0 | **Ratified**: 2026-08-23 | **Last Amended**: 2026-08-23
+**Version**: 1.1.0 | **Ratified**: 2026-08-23 | **Last Amended**: 2026-08-23
