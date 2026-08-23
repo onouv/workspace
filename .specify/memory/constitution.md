@@ -1,8 +1,8 @@
 <!--
 Sync Impact Report
-- Version change: 1.2.0 -> 1.3.0
+- Version change: 1.3.0 -> 1.4.0
 - Modified principles: none.
-- Added sections: core principle VIII, Secret Material Isolation and Repository Hygiene.
+- Added sections: Development Workflow and Quality Gate
 - Removed sections: none.
 - Follow-up TODOs: none.
 -->
@@ -164,6 +164,20 @@ Performance work MUST include a reproducible measurement or benchmark before int
 complexity. Documentation and examples MUST use commands that can run without undisclosed
 local state or credentials.
 
+The repository MUST follow the Gitflow branching model:
+- `main` contains production-ready code.
+- `develop` contains the integration state for the next release.
+- Feature branches MUST be created from `develop` and named
+  `feature/<short-description>`.
+- Feature branches MUST merge back into `develop` through review.
+- Release branches MUST use `release/<version>` and may merge into both
+  `main` and `develop`.
+- Hotfix branches MUST use `hotfix/<version>` and may merge into both
+  `main` and `develop`.
+- Direct commits to `main` and `develop` MUST NOT be made for normal development.
+- Production releases MUST be tagged from `main`.
+- Completed feature, release, and hotfix branches SHOULD be deleted after merging
+ 
 ## Governance
 
 This constitution is the governing engineering standard for the project. A pull request
@@ -179,4 +193,4 @@ wording without changing governance intent. Maintainers MUST review compliance d
 review and may reject changes that lack the required validation evidence. When this document
 conflicts with a lower-level guide, the constitution takes precedence until formally amended.
 
-**Version**: 1.3.0 | **Ratified**: 2026-08-23 | **Last Amended**: 2026-08-23
+**Version**: 1.4.0 | **Ratified**: 2026-08-23 | **Last Amended**: 2026-08-23

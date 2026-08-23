@@ -1,6 +1,6 @@
 # Implementation Plan: Configured tmux Workspace CLI
 
-**Branch**: `001-tmux-workspace` | **Date**: 2026-08-23 | **Spec**: [spec.md](./spec.md)
+**Branch**: `feature/tmux-workspace` | **Date**: 2026-08-23 | **Spec**: [spec.md](./spec.md)
 
 **Input**: Feature specification from `specs/001-tmux-workspace/spec.md`
 
@@ -38,7 +38,7 @@ waits for prompts
 **Constraints**: No secrets in repository or runtime output; existing sessions bypass `.ws`; complete
 configuration validation precedes tmux mutation; shell-generated arguments use argv boundaries; current
 in-tmux client remains unchanged by `up`; implementation follows the project constitution’s Rust
-readability and quality gates
+readability, quality, and Gitflow workflow requirements
 
 **Scale/Scope**: One local project definition at a time; recursive window/pane trees of practical
 development-workspace size; no daemon or multi-user service
@@ -62,6 +62,8 @@ development-workspace size; no daemon or multi-user service
   lint scopes are required; every non-trivial type gets a clear home.
 - **Secret isolation**: PASS. No repository secret fixtures; `.secrets` remains ignored; credential
   access is lazy through `pass`/GPG-agent and never copied into tmux environments.
+- **Gitflow branching**: PASS. This feature uses `feature/tmux-workspace`, based on `develop`; it
+  must merge back through review, with no direct feature work on `main` or `develop`.
 
 ## Project Structure
 
