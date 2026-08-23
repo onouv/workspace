@@ -28,10 +28,10 @@ until this phase is complete.
 
 - [X] T005 Define typed application errors, stable exit-status categories, redaction helpers, and top-level error rendering in `src/error.rs`.
 - [X] T006 Define the `clap` command model for discovery, `up`, `change`, `down`, `exit`, and reserved `clip` commands in `src/cli.rs`, including global `--help` and `--version` behavior without side effects.
-- [ ] T007 Define the subprocess abstraction and `TmuxClient` boundary in `src/tmux/client.rs`, including argv-safe command execution, captured stdout/stderr, status handling, and fake-runner injection for tests.
-- [ ] T008 Define terminal capability detection, TTY checks, and the `TerminalLauncher` boundary in `src/terminal/mod.rs` and `src/terminal/launcher.rs`; a missing launcher must be representable as a recoverable error.
-- [ ] T009 Define the application orchestration boundary and dependency injection points in `src/app.rs`, keeping command parsing, domain logic, terminal effects, and process-global state separate.
-- [ ] T010 Add module-level Rustdoc and lint policy scaffolding in `src/main.rs`, documenting any intentional lint allowances and preserving one clear home for each non-trivial type.
+- [X] T007 Define the subprocess abstraction and `TmuxClient` boundary in `src/tmux/client.rs`, including argv-safe command execution, captured stdout/stderr, status handling, and fake-runner injection for tests.
+- [X] T008 Define terminal capability detection, TTY checks, and the `TerminalLauncher` boundary in `src/terminal/mod.rs` and `src/terminal/launcher.rs`; a missing launcher must be representable as a recoverable error.
+- [X] T009 Define the application orchestration boundary and dependency injection points in `src/app.rs`, keeping command parsing, domain logic, terminal effects, and process-global state separate.
+- [X] T010 Add module-level Rustdoc and lint policy scaffolding in `src/main.rs`, documenting any intentional lint allowances and preserving one clear home for each non-trivial type.
 
 **Checkpoint**: Command, process, terminal, error, and application boundaries compile independently and
 can be exercised with fake external commands.
