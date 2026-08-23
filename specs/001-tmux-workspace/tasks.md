@@ -72,19 +72,19 @@ malformed YAML/schema/semantic cases without invoking tmux.
 
 ### Tests for User Story 2
 
-- [ ] T016 [P] [US2] Add valid-language tests in `tests/config_language.rs` for the canonical document, recursive panes, ordered windows, window and pane environments, path inheritance, and custom Bash commands.
-- [ ] T017 [P] [US2] Add invalid-language tests in `tests/config_language.rs` for YAML syntax, wrong types, missing keys, unknown keys, duplicate keys, invalid positions, invalid environment names, and invalid version values.
-- [ ] T018 [P] [US2] Add source-diagnostic assertions in `tests/config_language.rs` verifying file path and line/column or nearest declaration context for parse and validation errors.
+- [X] T016 [P] [US2] Add valid-language tests in `tests/config_language.rs` for the canonical document, recursive panes, ordered windows, window and pane environments, path inheritance, and custom Bash commands.
+- [X] T017 [P] [US2] Add invalid-language tests in `tests/config_language.rs` for YAML syntax, wrong types, missing keys, unknown keys, duplicate keys, invalid positions, invalid environment names, and invalid version values.
+- [X] T018 [P] [US2] Add source-diagnostic assertions in `tests/config_language.rs` verifying file path and line/column or nearest declaration context for parse and validation errors.
 
 ### Implementation for User Story 2
 
-- [ ] T019 [P] [US2] Implement `WorkspaceDefinition` and its Serde representation in `src/config/workspace_definition.rs`, including version and ordered windows.
-- [ ] T020 [P] [US2] Implement `WindowDefinition` in `src/config/window_definition.rs` with required name/path and optional command, environment, and pane sequence fields.
-- [ ] T021 [P] [US2] Implement recursive `PaneDefinition` in `src/config/pane_definition.rs` with position, optional ID/path/command/environment, and child panes.
-- [ ] T022 [US2] Implement YAML loading, source-aware parse errors, single-document handling, and duplicate-key policy in `src/config/parser.rs`.
-- [ ] T023 [US2] Implement schema and semantic validation in `src/config/validator.rs`, including unknown-key/type checks, uniqueness, version, path/value rules, environment-key validation, and empty-file handling.
-- [ ] T024 [US2] Implement path resolution and window/pane environment inheritance in `src/config/validator.rs`, producing immutable validated definitions without secret values.
-- [ ] T025 [US2] Synchronize `contracts/ws-schema.yaml`, `doc/config-lang.md`, and the embedded config help content in `src/help.rs`, and add a test that detects drift between the published schema/example and parser fixtures.
+- [X] T019 [P] [US2] Implement `WorkspaceDefinition` and its Serde representation in `src/config/workspace_definition.rs`, including version and ordered windows.
+- [X] T020 [P] [US2] Implement `WindowDefinition` in `src/config/window_definition.rs` with required name/path and optional command, environment, and pane sequence fields.
+- [X] T021 [P] [US2] Implement recursive `PaneDefinition` in `src/config/pane_definition.rs` with position, optional ID/path/command/environment, and child panes.
+- [X] T022 [US2] Implement YAML loading, source-aware parse errors, single-document handling, and duplicate-key policy in `src/config/parser.rs`.
+- [X] T023 [US2] Implement schema and semantic validation in `src/config/validator.rs`, including unknown-key/type checks, uniqueness, version, path/value rules, environment-key validation, and empty-file handling.
+- [X] T024 [US2] Implement path resolution and window/pane environment inheritance in `src/config/validator.rs`, producing immutable validated definitions without secret values.
+- [X] T025 [US2] Synchronize `contracts/ws-schema.yaml`, `doc/config-lang.md`, and the embedded config help content in `src/help.rs`, and add a test that detects drift between the published schema/example and parser fixtures.
 
 **Checkpoint**: User Story 2 is independently testable as a YAML parser/validator and `ws help config`
 publishes the same contract.

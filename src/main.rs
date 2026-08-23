@@ -4,7 +4,6 @@
 
 mod app;
 mod cli;
-mod config;
 mod credentials;
 mod error;
 mod help;
