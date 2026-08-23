@@ -14,10 +14,10 @@ an independently testable increment after the foundational phase.
 
 **Purpose**: Establish the Rust application, dependency lockfile, repository safety, and test layout.
 
-- [ ] T001 Add the approved Rust dependencies and test dependencies to `Cargo.toml`, resolve the maintained Serde-compatible YAML parser, and generate `Cargo.lock`.
-- [ ] T002 Replace the hello-world entry point in `src/main.rs` and create the module skeleton from `plan.md`: `src/app.rs`, `src/cli.rs`, `src/error.rs`, `src/help.rs`, `src/config/mod.rs`, `src/lifecycle/mod.rs`, `src/tmux/mod.rs`, `src/terminal/mod.rs`, and `src/credentials/mod.rs`.
-- [ ] T003 [P] Add repository secret exclusions for `.secrets/` and nested descendants to `.gitignore`, and verify that no existing tracked path violates the constitution’s secret-isolation rule.
-- [ ] T004 [P] Create shared process-test helpers and disposable workspace utilities in `tests/support/mod.rs` without storing credentials or persistent secret fixtures.
+- [X] T001 Add the approved Rust dependencies and test dependencies to `Cargo.toml`, resolve the maintained Serde-compatible YAML parser, and generate `Cargo.lock`.
+- [X] T002 Replace the hello-world entry point in `src/main.rs` and create the module skeleton from `plan.md`: `src/app.rs`, `src/cli.rs`, `src/error.rs`, `src/help.rs`, `src/config/mod.rs`, `src/lifecycle/mod.rs`, `src/tmux/mod.rs`, `src/terminal/mod.rs`, and `src/credentials/mod.rs`.
+- [X] T003 [P] Add repository secret exclusions for `.secrets/` and nested descendants to `.gitignore`, and verify that no existing tracked path violates the constitution’s secret-isolation rule.
+- [X] T004 [P] Create shared process-test helpers and disposable workspace utilities in `tests/support/mod.rs` without storing credentials or persistent secret fixtures.
 
 ---
 
