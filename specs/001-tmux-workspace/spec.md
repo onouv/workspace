@@ -75,55 +75,55 @@ properties:
       $ref: '#/$defs/window'
 $defs:
   window:
-     type: object
-     required: [name, path]
-     additionalProperties: false
-     properties:
-       name:
-         type: string
-         minLength: 1
-       path:
-         type: string
-         minLength: 1
-       command:
-         type: string
-         minLength: 1
-       env:
-         type: object
-         propertyNames:
-           pattern: '^[A-Za-z_][A-Za-z0-9_]*$'
-         additionalProperties:
-           type: string
-       panes:
-         type: array
-         items:
-           $ref: '#/$defs/pane'
-   pane:
-     type: object
-     required: [pos]
-     additionalProperties: false
-     properties:
-       pos:
-         enum: [left, right, top, bottom]
-       id:
-         type: string
-         minLength: 1
-       path:
-         type: string
-         minLength: 1
-       command:
-         type: string
-         minLength: 1
-       env:
-         type: object
-         propertyNames:
-           pattern: '^[A-Za-z_][A-Za-z0-9_]*$'
-         additionalProperties:
-           type: string
-       panes:
-         type: array
-         items:
-           $ref: '#/$defs/pane'
+    type: object
+    required: [name, path]
+    additionalProperties: false
+    properties:
+      name:
+        type: string
+        minLength: 1
+      path:
+        type: string
+        minLength: 1
+      command:
+        type: string
+        minLength: 1
+      env:
+        type: object
+        propertyNames:
+          pattern: '^[A-Za-z_][A-Za-z0-9_]*$'
+        additionalProperties:
+          type: string
+      panes:
+        type: array
+        items:
+          $ref: '#/$defs/pane'
+  pane:
+    type: object
+    required: [pos]
+    additionalProperties: false
+    properties:
+      pos:
+        enum: [left, right, top, bottom]
+      id:
+        type: string
+        minLength: 1
+      path:
+        type: string
+        minLength: 1
+      command:
+        type: string
+        minLength: 1
+      env:
+        type: object
+        propertyNames:
+          pattern: '^[A-Za-z_][A-Za-z0-9_]*$'
+        additionalProperties:
+          type: string
+      panes:
+        type: array
+        items:
+          $ref: '#/$defs/pane'
 ```
 
 The schema and these semantic rules are normative:
