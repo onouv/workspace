@@ -49,14 +49,14 @@ calls, and correct unknown-command errors.
 
 ### Tests for User Story 1
 
-- [ ] T011 [P] [US1] Add process-level discovery tests in `tests/cli_help.rs` covering `ws`, `ws help`, `ws --help`, `ws help config`, and `ws --version` with external dependencies unavailable.
-- [ ] T012 [P] [US1] Add output-contract tests in `tests/cli_help.rs` for concise usage, command listings, configuration-reference content, version output, stdout/stderr separation, and unknown-command failures.
+- [X] T011 [P] [US1] Add process-level discovery tests in `tests/cli_help.rs` covering `ws`, `ws help`, `ws --help`, `ws help config`, and `ws --version` with external dependencies unavailable.
+- [X] T012 [P] [US1] Add output-contract tests in `tests/cli_help.rs` for concise usage, command listings, configuration-reference content, version output, stdout/stderr separation, and unknown-command failures.
 
 ### Implementation for User Story 1
 
-- [ ] T013 [US1] Implement side-effect-free help and version rendering in `src/help.rs`, including the command summary and a pointer to `ws help config`.
-- [ ] T014 [US1] Add the user-facing `.ws` language reference and canonical example to `doc/config-lang.md`, derived from `contracts/ws-schema.yaml`, for inclusion in `ws help config`.
-- [ ] T015 [US1] Wire `ws`, `help`, `--help`, `help config`, and `--version` through `src/app.rs` so they return before tmux, pass, GPG, configuration, or terminal-launcher access.
+- [X] T013 [US1] Implement side-effect-free help and version rendering in `src/help.rs`, including the command summary and a pointer to `ws help config`.
+- [X] T014 [US1] Add the user-facing `.ws` language reference and canonical example to `doc/config-lang.md`, derived from `contracts/ws-schema.yaml`, for inclusion in `ws help config`.
+- [X] T015 [US1] Wire `ws`, `help`, `--help`, `help config`, and `--version` through `src/app.rs` so they return before tmux, pass, GPG, configuration, or terminal-launcher access.
 
 **Checkpoint**: User Story 1 is independently usable and testable without tmux or password-store setup.
 

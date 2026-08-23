@@ -1,8 +1,9 @@
 #![allow(dead_code)]
 
 use assert_cmd::Command;
+
 use std::sync::atomic::{AtomicU64, Ordering};
-use tempfile::{tempdir, TempDir};
+use tempfile::{TempDir, tempdir};
 
 static NEXT_SESSION_ID: AtomicU64 = AtomicU64::new(0);
 

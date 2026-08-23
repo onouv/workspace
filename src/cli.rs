@@ -6,6 +6,8 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
     name = "ws",
     version,
     about = "Start and manage configured tmux workspaces",
+    after_help = "Examples:\n  ws up SESSION_NAME\n  ws change SESSION_NAME\n  ws help config",
+    disable_help_subcommand = true,
     subcommand_required = false,
     arg_required_else_help = false
 )]
