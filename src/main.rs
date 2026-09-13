@@ -16,14 +16,16 @@ use clap::Parser;
 use crate::app::{App, AppDependencies};
 use crate::cli::Cli;
 use crate::error::render_error;
-use crate::terminal::launcher::UnavailableTerminalLauncher;
+use crate::terminal::TerminalContext;
+use crate::terminal::launcher::ConfiguredTerminalLauncher;
 use crate::tmux::client::TmuxClient;
 
 fn main() {
     let cli = Cli::parse();
     let app = App::new(AppDependencies {
         tmux: TmuxClient::default(),
-        terminal_launcher: Box::new(UnavailableTerminalLauncher),
+        terminal_launcher: Box::new(ConfiguredTerminalLauncher::from_env()),
+        terminal: TerminalContext::detect(),
     });
 
     match app.execute(cli) {

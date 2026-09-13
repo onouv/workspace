@@ -1,5 +1,3 @@
-#![allow(dead_code)] // Terminal capabilities are consumed by lifecycle tasks after this boundary.
-
 use std::env;
 use std::io::{self, IsTerminal};
 
@@ -27,7 +25,11 @@ impl TerminalContext {
     pub const fn inside_tmux(self) -> bool {
         self.inside_tmux
     }
+}
 
+// Consumed by the `down`/`exit` TTY-confirmation behavior added in a later phase (User Story 7).
+#[allow(dead_code)]
+impl TerminalContext {
     /// Return whether interactive input is available.
     pub const fn stdin_is_tty(self) -> bool {
         self.stdin_is_tty
@@ -47,5 +49,26 @@ impl TerminalContext {
 impl Default for TerminalContext {
     fn default() -> Self {
         Self::detect()
+    }
+}
+
+#[cfg(test)]
+impl TerminalContext {
+    /// A context outside tmux with an interactive terminal on both streams.
+    pub(crate) const fn outside_tmux_for_test() -> Self {
+        Self {
+            inside_tmux: false,
+            stdin_is_tty: true,
+            stdout_is_tty: true,
+        }
+    }
+
+    /// A context inside a tmux client with an interactive terminal on both streams.
+    pub(crate) const fn inside_tmux_for_test() -> Self {
+        Self {
+            inside_tmux: true,
+            stdin_is_tty: true,
+            stdout_is_tty: true,
+        }
     }
 }

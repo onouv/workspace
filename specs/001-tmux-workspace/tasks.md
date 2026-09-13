@@ -102,18 +102,18 @@ preserved in-tmux, and separate-terminal-launcher failures are recoverable.
 
 ### Tests for User Story 3
 
-- [ ] T026 [P] [US3] Add existing-session tests in `tests/lifecycle.rs` proving `ws up SESSION_NAME` checks tmux before reading malformed `.ws` and connects to the existing target.
-- [ ] T027 [P] [US3] Add in-tmux tests in `tests/lifecycle.rs` proving `ws up OTHER_SESSION` leaves `SESSION_ONE` attached and opens an existing target through a separate terminal context.
-- [ ] T028 [P] [US3] Add missing-target tests in `tests/lifecycle.rs` proving `ws up OTHER_SESSION` applies `.ws`, creates a fresh target, and does not clone live panes or processes.
-- [ ] T029 [P] [US3] Add race, invalid-session-name, current-session, and unavailable-launcher cases in `tests/lifecycle.rs`, asserting no duplicate session and no current-client mutation on recoverable failure.
+- [X] T026 [P] [US3] Add existing-session tests in `tests/lifecycle.rs` proving `ws up SESSION_NAME` checks tmux before reading malformed `.ws` and connects to the existing target.
+- [X] T027 [P] [US3] Add in-tmux tests in `tests/lifecycle.rs` proving `ws up OTHER_SESSION` leaves `SESSION_ONE` attached and opens an existing target through a separate terminal context.
+- [X] T028 [P] [US3] Add missing-target tests in `tests/lifecycle.rs` proving `ws up OTHER_SESSION` applies `.ws`, creates a fresh target, and does not clone live panes or processes.
+- [X] T029 [P] [US3] Add race, invalid-session-name, current-session, and unavailable-launcher cases in `tests/lifecycle.rs`, asserting no duplicate session and no current-client mutation on recoverable failure.
 
 ### Implementation for User Story 3
 
-- [ ] T030 [US3] Implement tmux session probing, session creation, attach, and target validation in `src/tmux/session.rs` using `TmuxClient` argv boundaries.
-- [ ] T031 [US3] Implement current-client/session detection and safe attach/switch primitives in `src/tmux/client.rs`.
-- [ ] T032 [US3] Implement the separate terminal-launcher adapter in `src/terminal/launcher.rs`, including configured launcher invocation and a clear recoverable unavailable-launcher error.
-- [ ] T033 [US3] Implement `ws up` decision flow in `src/lifecycle/up.rs`: validate the session name, probe before config read, select existing-session behavior, build missing-session plans, and preserve the current in-tmux client.
-- [ ] T034 [US3] Connect `up` orchestration through `src/app.rs` and `src/lifecycle/mod.rs`, ensuring no password-store access occurs during workspace startup.
+- [X] T030 [US3] Implement tmux session probing, session creation, attach, and target validation in `src/tmux/session.rs` using `TmuxClient` argv boundaries.
+- [X] T031 [US3] Implement current-client/session detection and safe attach/switch primitives in `src/tmux/client.rs`.
+- [X] T032 [US3] Implement the separate terminal-launcher adapter in `src/terminal/launcher.rs`, including configured launcher invocation and a clear recoverable unavailable-launcher error.
+- [X] T033 [US3] Implement `ws up` decision flow in `src/lifecycle/up.rs`: validate the session name, probe before config read, select existing-session behavior, build missing-session plans, and preserve the current in-tmux client.
+- [X] T034 [US3] Connect `up` orchestration through `src/app.rs` and `src/lifecycle/mod.rs`, ensuring no password-store access occurs during workspace startup.
 
 **Checkpoint**: User Story 3 preserves existing sessions and supports non-disruptive creation/reconnect
 behavior with fake external dependencies.

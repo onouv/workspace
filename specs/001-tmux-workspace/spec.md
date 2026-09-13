@@ -652,12 +652,12 @@ test do not exist yet, naming the `tasks.md` phase and task ids expected to clos
 | US2-AS2 | Pending — Phase 7 (T040-T042): requires `ws up` to apply a valid `.ws` file against real tmux. |
 | US2-AS3 | Pending — Phase 8 (T048): requires proof that an invalid document creates no session. |
 | US2-AS4 | Pending — Phase 7 (T041): requires observing a custom command execute under tmux. |
-| US3-AS1 | Pending — Phase 5 (T026). |
-| US3-AS2 | Pending — Phase 5 (T028). |
-| US3-AS3 | Pending — Phase 5 (T027). |
-| US3-AS4 | Pending — Phase 5 (T029). |
-| US3-AS5 | Pending — Phase 5 (T029). |
-| US3-AS6 | Pending — Phase 5 (T029). |
+| US3-AS1 | `tests/lifecycle.rs::given_an_existing_session_when_up_is_invoked_outside_tmux_then_it_attaches_without_reading_the_config` |
+| US3-AS2 | `tests/lifecycle.rs::given_a_missing_session_when_up_is_invoked_inside_tmux_then_it_applies_the_config_and_opens_a_separate_terminal` |
+| US3-AS3 | `tests/lifecycle.rs::given_an_existing_session_when_up_is_invoked_inside_tmux_then_it_opens_a_separate_terminal_and_preserves_the_current_client` |
+| US3-AS4 | `tests/lifecycle.rs::given_an_existing_session_when_up_is_invoked_inside_tmux_then_it_opens_a_separate_terminal_and_preserves_the_current_client` |
+| US3-AS5 | `tests/lifecycle.rs::given_an_invalid_session_name_when_up_is_invoked_then_it_is_rejected_before_any_dependency_access` |
+| US3-AS6 | `tests/lifecycle.rs::given_the_target_session_race_is_lost_when_up_is_invoked_then_it_reconnects_instead_of_failing` |
 | US4-AS1 | Pending — Phase 6 (T035). |
 | US4-AS2 | Pending — Phase 6 (T035). |
 | US4-AS3 | Pending — Phase 6 (T036). |
