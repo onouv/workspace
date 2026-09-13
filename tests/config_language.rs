@@ -50,6 +50,23 @@ fn assert_invalid(source: &str, expected: &str) {
     assert!(error.to_string().contains(expected), "{error}");
 }
 
+/// Builds a flow-style pane nested `levels` deep, e.g. `nested_panes_flow(2)` is
+/// `{pos: top, panes: [{pos: top}]}`, which has pane-nesting depth 2.
+fn nested_panes_flow(levels: usize) -> String {
+    let mut pane = String::from("{pos: top}");
+    for _ in 1..levels {
+        pane = format!("{{pos: top, panes: [{pane}]}}");
+    }
+    pane
+}
+
+fn document_with_nested_panes(levels: usize) -> String {
+    format!(
+        "version: 1\nwindows:\n  - name: root\n    path: .\n    panes: [{}]\n",
+        nested_panes_flow(levels)
+    )
+}
+
 #[test]
 fn given_the_canonical_document_when_loaded_then_windows_panes_and_commands_are_preserved() {
     let project = project_with_directories();
@@ -189,6 +206,24 @@ fn given_source_errors_when_loaded_then_the_path_and_location_or_declaration_con
     let error = load(&path).expect_err("an unresolved path should fail");
     assert!(error.to_string().contains(path.to_string_lossy().as_ref()));
     assert!(error.to_string().contains("window[0]"));
+}
+
+#[test]
+fn given_pane_nesting_at_the_maximum_depth_when_loaded_then_the_document_is_accepted() {
+    let project = project_with_directories();
+    let path = write_workspace(&project, &document_with_nested_panes(32));
+
+    load(&path).expect("nesting at the documented maximum depth should be accepted");
+}
+
+#[test]
+fn given_pane_nesting_beyond_the_maximum_depth_when_loaded_then_the_document_is_rejected() {
+    let project = project_with_directories();
+    let path = write_workspace(&project, &document_with_nested_panes(33));
+
+    let error =
+        load(&path).expect_err("nesting beyond the documented maximum depth should be rejected");
+    assert!(error.to_string().contains("maximum depth of 32"), "{error}");
 }
 
 #[test]

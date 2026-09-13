@@ -13,6 +13,7 @@ fn temporary_project_with_invalid_config() -> tempfile::TempDir {
 
 #[test]
 fn given_missing_dependencies_when_running_without_arguments_then_prints_help() {
+    // Scenario: US1-AS2
     let project = temporary_project_with_invalid_config();
 
     support::ws_command()
@@ -44,6 +45,7 @@ fn given_missing_dependencies_when_running_help_then_prints_command_interface() 
 
 #[test]
 fn given_missing_dependencies_when_running_global_help_then_uses_stdout() {
+    // Scenario: US1-AS1
     let project = temporary_project_with_invalid_config();
 
     support::ws_command()
@@ -61,6 +63,7 @@ fn given_missing_dependencies_when_running_global_help_then_uses_stdout() {
 
 #[test]
 fn given_missing_dependencies_when_requesting_config_help_then_prints_normative_reference() {
+    // Scenario: US1-AS5, US2-AS1
     let project = temporary_project_with_invalid_config();
 
     support::ws_command()
@@ -80,6 +83,7 @@ fn given_missing_dependencies_when_requesting_config_help_then_prints_normative_
 
 #[test]
 fn given_missing_dependencies_when_requesting_version_then_prints_only_version() {
+    // Scenario: US1-AS3
     let project = temporary_project_with_invalid_config();
 
     support::ws_command()
@@ -95,6 +99,7 @@ fn given_missing_dependencies_when_requesting_version_then_prints_only_version()
 
 #[test]
 fn given_an_unknown_command_when_invoked_then_returns_helpful_stderr_error() {
+    // Scenario: US1-AS4
     let project = temporary_project_with_invalid_config();
 
     support::ws_command()

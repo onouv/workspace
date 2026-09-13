@@ -94,6 +94,9 @@ $defs:
   must remain strings.
 - Windows and panes retain declaration order. Window order determines tmux window order; nested pane
   order determines the split hierarchy.
+- Recursive pane nesting MUST NOT exceed a depth of 32 levels beneath a window. A document nesting
+  panes deeper than 32 levels is rejected with a source-oriented validation error rather than risking
+  unbounded recursion.
 - `left` and `right` create horizontal splits. `top` and `bottom` create vertical splits relative to
   the containing pane. Tmux's default pane dimensions are used.
 - `command` is a shell command string and may invoke an executable, custom Bash script, pipeline, or

@@ -5,7 +5,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use super::pane_definition::{PaneDefinition, ValidatedPaneDefinition};
-use super::parser::{ConfigError, validation_error};
+use super::parser::{ConfigError, MAX_PANE_NESTING_DEPTH, validation_error};
 
 use super::workspace_definition::{
     CURRENT_VERSION, ValidatedWindowDefinition, ValidatedWorkspaceDefinition, WorkspaceDefinition,
@@ -65,6 +65,7 @@ pub fn validate(
             source_path,
             &context,
             &mut pane_ids,
+            1,
         )?;
 
         windows.push(ValidatedWindowDefinition {
@@ -90,7 +91,15 @@ fn validate_panes(
     source_path: &Path,
     parent_context: &str,
     pane_ids: &mut HashSet<String>,
+    depth: usize,
 ) -> Result<Vec<ValidatedPaneDefinition>, ConfigError> {
+    if depth > MAX_PANE_NESTING_DEPTH && !panes.is_empty() {
+        return Err(validation_error(
+            source_path,
+            parent_context,
+            format!("pane nesting exceeds the maximum depth of {MAX_PANE_NESTING_DEPTH}"),
+        ));
+    }
     let mut validated = Vec::with_capacity(panes.len());
 
     for (index, pane) in panes.into_iter().enumerate() {
@@ -127,6 +136,7 @@ fn validate_panes(
             source_path,
             &context,
             pane_ids,
+            depth + 1,
         )?;
 
         validated.push(ValidatedPaneDefinition {

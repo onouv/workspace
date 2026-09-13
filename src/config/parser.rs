@@ -90,20 +90,21 @@ impl std::error::Error for ConfigError {
     }
 }
 
+/// Maximum recursive pane nesting depth beneath a window, per the constitution's bounded-recursion
+/// rule for externally supplied structure. Chosen well above any practical workspace layout while
+/// keeping the recursive descent below in `validate_pane_types` and in
+/// [`super::validator::validate`] bounded.
+pub(crate) const MAX_PANE_NESTING_DEPTH: usize = 32;
+
 /// Parse one `.ws` YAML document without performing external workspace effects.
 pub fn parse(source: &str, source_path: &Path) -> Result<WorkspaceDefinition, ConfigError> {
     if source.trim().is_empty() {
         return Ok(WorkspaceDefinition::default_for(source_path));
     }
 
-    let definition = yaml_serde::from_str(source).map_err(|error| ConfigError::Parse {
-        path: source_path.to_path_buf(),
-        message: error.to_string(),
-        location: error.location().map(|location| SourceLocation {
-            line: location.line(),
-            column: location.column(),
-        }),
-    })?;
+    // The untyped `Value` tree is validated (including pane-nesting depth) before the typed,
+    // recursively-deserializing parse below runs, so that an over-deep document is rejected here
+    // rather than risking unbounded recursion during typed deserialization.
     let value = yaml_serde::from_str::<Value>(source).map_err(|error| ConfigError::Parse {
         path: source_path.to_path_buf(),
         message: error.to_string(),
@@ -113,7 +114,15 @@ pub fn parse(source: &str, source_path: &Path) -> Result<WorkspaceDefinition, Co
         }),
     })?;
     validate_yaml_types(&value, source_path, "document")?;
-    Ok(definition)
+
+    yaml_serde::from_str(source).map_err(|error| ConfigError::Parse {
+        path: source_path.to_path_buf(),
+        message: error.to_string(),
+        location: error.location().map(|location| SourceLocation {
+            line: location.line(),
+            column: location.column(),
+        }),
+    })
 }
 
 fn validate_yaml_types(
@@ -169,7 +178,7 @@ fn validate_window_types(
             )
         })?;
         for (index, pane) in panes.iter().enumerate() {
-            validate_pane_types(pane, source_path, &format!("{context}.panes[{index}]"))?;
+            validate_pane_types(pane, source_path, &format!("{context}.panes[{index}]"), 1)?;
         }
     }
     Ok(())
@@ -179,7 +188,15 @@ fn validate_pane_types(
     value: &Value,
     source_path: &Path,
     context: &str,
+    depth: usize,
 ) -> Result<(), ConfigError> {
+    if depth > MAX_PANE_NESTING_DEPTH {
+        return Err(validation_error(
+            source_path,
+            context,
+            format!("pane nesting exceeds the maximum depth of {MAX_PANE_NESTING_DEPTH}"),
+        ));
+    }
     reject_tag(value, source_path, context)?;
     let pane = value.as_mapping().ok_or_else(|| {
         validation_error(source_path, context, "must be a YAML mapping".to_owned())
@@ -200,7 +217,12 @@ fn validate_pane_types(
             )
         })?;
         for (index, pane) in panes.iter().enumerate() {
-            validate_pane_types(pane, source_path, &format!("{context}.panes[{index}]"))?;
+            validate_pane_types(
+                pane,
+                source_path,
+                &format!("{context}.panes[{index}]"),
+                depth + 1,
+            )?;
         }
     }
     Ok(())

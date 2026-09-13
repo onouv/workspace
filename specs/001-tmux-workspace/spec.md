@@ -138,6 +138,9 @@ The schema and these semantic rules are normative:
 - `windows` and `panes` are ordered YAML sequences. Window order determines tmux window order, and
   pane nesting determines the split hierarchy. Window names MUST be unique. Pane identifiers, when
   supplied, MUST be unique within their containing window.
+- Recursive pane nesting MUST NOT exceed a depth of 32 levels beneath a window. A document nesting
+  panes deeper than 32 levels MUST be rejected with a source-oriented validation error rather than
+  risking unbounded recursion.
 - `env` is a mapping from environment-variable names to string values. Window values are inherited
   by all descendant panes; pane values override inherited values. Values that look like YAML booleans,
   numbers, or null SHOULD be quoted so they remain strings.
@@ -199,16 +202,16 @@ not invoke either external dependency.
 
 **Acceptance Scenarios**:
 
-1. **Given** tmux and the password store are unavailable, **When** the user invokes `ws --help`,
+1. **US1-AS1**. **Given** tmux and the password store are unavailable, **When** the user invokes `ws --help`,
    **Then** `ws` prints command usage, examples, and the available command groups and exits zero.
-2. **Given** no command arguments are supplied, **When** the user invokes `ws`, **Then** `ws` prints
+2. **US1-AS2**. **Given** no command arguments are supplied, **When** the user invokes `ws`, **Then** `ws` prints
    concise help and exits zero without prompting or changing any session.
-3. **Given** the user requests version information, **When** the user invokes `ws --version`,
+3. **US1-AS3**. **Given** the user requests version information, **When** the user invokes `ws --version`,
    **Then** `ws` prints the version and exits zero without reading `.ws`, contacting tmux, or
    accessing `pass`.
-4. **Given** a command or option is unknown, **When** the user invokes it, **Then** `ws` reports the
+4. **US1-AS4**. **Given** a command or option is unknown, **When** the user invokes it, **Then** `ws` reports the
    error on stderr, includes a path to help, and exits non-zero without side effects.
-5. **Given** the user wants to learn the `.ws` language, **When** the user invokes `ws help config`,
+5. **US1-AS5**. **Given** the user wants to learn the `.ws` language, **When** the user invokes `ws help config`,
    **Then** `ws` prints the normative YAML schema, semantic rules, pane-position meanings, and a
    complete example without contacting tmux or the password store.
 
@@ -228,15 +231,15 @@ supplied nested-pane example; compare parser acceptance tests against the docume
 
 **Acceptance Scenarios**:
 
-1. **Given** the user invokes `ws help config`, **When** the command runs without tmux or `pass`,
+1. **US2-AS1**. **Given** the user invokes `ws help config`, **When** the command runs without tmux or `pass`,
    **Then** it prints the complete `.ws` language reference and exits zero without side effects.
-2. **Given** a `.ws` document is valid YAML and follows the schema and semantic rules, **When** the
+2. **US2-AS2**. **Given** a `.ws` document is valid YAML and follows the schema and semantic rules, **When** the
    user invokes `ws up SESSION_NAME`, **Then** the document is accepted and produces the described
    workspace.
-3. **Given** a `.ws` document violates YAML syntax, schema types, required keys, nesting, or semantic
+3. **US2-AS3**. **Given** a `.ws` document violates YAML syntax, schema types, required keys, nesting, or semantic
    rules, **When** the user invokes `ws up SESSION_NAME`, **Then** `ws` rejects it with a source
    location and does not create a new session.
-4. **Given** a window or pane uses `command: bash ./scripts/setup.sh`, **When** its command starts,
+4. **US2-AS4**. **Given** a window or pane uses `command: bash ./scripts/setup.sh`, **When** its command starts,
    **Then** the script runs in the declaration’s resolved working directory with the declared
    environment, allowing project-specific services and integrations without a built-in option.
 
@@ -258,24 +261,24 @@ existing case ignores `.ws`; in both cases verify that `SESSION_ONE` remains att
 
 **Acceptance Scenarios**:
 
-1. **Given** a tmux session exists with the requested name and `ws up SESSION_NAME` is invoked
+1. **US3-AS1**. **Given** a tmux session exists with the requested name and `ws up SESSION_NAME` is invoked
    outside tmux, **When** the command runs, **Then** `ws` attaches to that session without reading,
    parsing, or applying the local `.ws` file.
-2. **Given** the user is in `SESSION_ONE` and `OTHER_SESSION` does not exist, **When** the user invokes
+2. **US3-AS2**. **Given** the user is in `SESSION_ONE` and `OTHER_SESSION` does not exist, **When** the user invokes
    `ws up OTHER_SESSION`, **Then** `ws` reads and applies the local `.ws` definition, creates a
    reinitialized `OTHER_SESSION` workspace in a separate terminal client/window, and leaves
    `SESSION_ONE` attached and unchanged.
-3. **Given** the user is in `SESSION_ONE` and `OTHER_SESSION` already exists, **When** the user invokes
+3. **US3-AS3**. **Given** the user is in `SESSION_ONE` and `OTHER_SESSION` already exists, **When** the user invokes
    `ws up OTHER_SESSION`, **Then** `ws` opens a separate terminal client/window connected to
    `OTHER_SESSION`, leaves `SESSION_ONE` attached and unchanged, and does not read, parse, or apply
    the local `.ws` file.
-4. **Given** the requested session is already attached to the current tmux client, **When** the user
+4. **US3-AS4**. **Given** the requested session is already attached to the current tmux client, **When** the user
    invokes `ws up SESSION_NAME`, **Then** `ws` does not switch the current client or create a
    duplicate session, and reports or opens the documented separate terminal context.
-5. **Given** the session name is missing, whitespace-only, or invalid for tmux, **When** the user
+5. **US3-AS5**. **Given** the session name is missing, whitespace-only, or invalid for tmux, **When** the user
    invokes `ws up SESSION_NAME`, **Then** `ws` rejects the input with a concise diagnostic before
    changing any session.
-6. **Given** two invocations race to start the same missing session, **When** both attempt startup,
+6. **US3-AS6**. **Given** two invocations race to start the same missing session, **When** both attempt startup,
    **Then** at most one session is created and the losing invocation reconnects or reports a
    recoverable conflict.
 
@@ -295,12 +298,12 @@ user’s normal shell.
 
 **Acceptance Scenarios**:
 
-1. **Given** no tmux session has the requested name and no local `.ws` file exists, **When** the user
+1. **US4-AS1**. **Given** no tmux session has the requested name and no local `.ws` file exists, **When** the user
    invokes `ws up SESSION_NAME`, **Then** `ws` creates one tmux session with one usable window in
    the current project directory.
-2. **Given** the default workspace was created, **When** the user enters the session, **Then** the
+2. **US4-AS2**. **Given** the default workspace was created, **When** the user enters the session, **Then** the
    window has a stable name and provides the user’s normal interactive shell.
-3. **Given** tmux is unavailable, **When** the user invokes `ws up SESSION_NAME`, **Then** `ws` reports
+3. **US4-AS3**. **Given** tmux is unavailable, **When** the user invokes `ws up SESSION_NAME`, **Then** `ws` reports
    that tmux could not be started or contacted and exits non-zero without accessing or exposing
    credentials.
 
@@ -321,21 +324,21 @@ file, and verify that an in-tmux invocation preserves `SESSION_ONE`.
 
 **Acceptance Scenarios**:
 
-1. **Given** a valid `.ws` file, **When** no session with the requested name exists and the user
+1. **US5-AS1**. **Given** a valid `.ws` file, **When** no session with the requested name exists and the user
    invokes `ws up SESSION_NAME`, **Then** `ws` creates the session from the file in declaration order.
-2. **Given** a window declaration with a name, path, and command, **When** the workspace starts,
+2. **US5-AS2**. **Given** a window declaration with a name, path, and command, **When** the workspace starts,
    **Then** the corresponding window has that name, starts in that path, and runs that command.
-3. **Given** a nested pane declaration, **When** the workspace starts, **Then** `ws` creates the
+3. **US5-AS3**. **Given** a nested pane declaration, **When** the workspace starts, **Then** `ws` creates the
    requested split direction and recursively creates its child panes in the declared hierarchy.
-4. **Given** an environment declaration in a window or pane, **When** its command starts, **Then**
+4. **US5-AS4**. **Given** an environment declaration in a window or pane, **When** its command starts, **Then**
    the command receives that value, with a more specific pane value overriding an inherited window
    value.
-5. **Given** a valid configuration with multiple windows and panes, **When** workspace creation
+5. **US5-AS5**. **Given** a valid configuration with multiple windows and panes, **When** workspace creation
    completes, **Then** the user is connected to the new session with the first declared window selected.
-6. **Given** the user is in `SESSION_ONE` and `OTHER_SESSION` does not exist, **When** the user invokes
+6. **US5-AS6**. **Given** the user is in `SESSION_ONE` and `OTHER_SESSION` does not exist, **When** the user invokes
    `ws up OTHER_SESSION`, **Then** `ws` creates `OTHER_SESSION` from the local `.ws` file and opens it
    in a separate terminal client/window without switching or modifying `SESSION_ONE`.
-7. **Given** a configured command contains shell syntax such as a home-directory shortcut, pipe, or
+7. **US5-AS7**. **Given** a configured command contains shell syntax such as a home-directory shortcut, pipe, or
    redirect, **When** the command starts, **Then** it is interpreted by the documented user shell as
    a project configuration command, while generated session names and paths are never shell-expanded
    through string interpolation.
@@ -356,16 +359,16 @@ newly created session with the requested name.
 
 **Acceptance Scenarios**:
 
-1. **Given** a `.ws` file contains invalid syntax or unsupported fields, **When** the user invokes
+1. **US6-AS1**. **Given** a `.ws` file contains invalid syntax or unsupported fields, **When** the user invokes
    `ws up SESSION_NAME`, **Then** `ws` reports the problem with a location or relevant field and does
    not create the session.
-2. **Given** a referenced working directory does not exist, **When** the user invokes
+2. **US6-AS2**. **Given** a referenced working directory does not exist, **When** the user invokes
    `ws up SESSION_NAME`, **Then** `ws` reports which declaration failed and does not silently
    substitute another directory.
-3. **Given** a configured command cannot be started, **When** the user invokes `ws up SESSION_NAME`,
+3. **US6-AS3**. **Given** a configured command cannot be started, **When** the user invokes `ws up SESSION_NAME`,
    **Then** `ws` reports the affected window or pane and returns non-zero without printing secret
    values.
-4. **Given** the file is valid but session creation fails partway through, **When** startup aborts,
+4. **US6-AS4**. **Given** the file is valid but session creation fails partway through, **When** startup aborts,
    **Then** `ws` cleans up only the new session it created and leaves pre-existing sessions untouched.
 
 ---
@@ -383,27 +386,27 @@ outside tmux, and verify the target session state and confirmation behavior.
 
 **Acceptance Scenarios**:
 
-1. **Given** the user is inside a tmux session, **When** the user invokes `ws exit`, **Then** `ws`
+1. **US7-AS1**. **Given** the user is inside a tmux session, **When** the user invokes `ws exit`, **Then** `ws`
    detaches the client without killing the session and returns a documented status.
-2. **Given** a named session exists, **When** the user invokes `ws down SESSION_NAME`, **Then** `ws`
+2. **US7-AS2**. **Given** a named session exists, **When** the user invokes `ws down SESSION_NAME`, **Then** `ws`
    requests confirmation in an interactive terminal, kills only that named session after approval,
    and reports success.
-3. **Given** `ws down SESSION_NAME` is run without a TTY, **When** `--yes` is not supplied, **Then**
+3. **US7-AS3**. **Given** `ws down SESSION_NAME` is run without a TTY, **When** `--yes` is not supplied, **Then**
    `ws` refuses the destructive action and explains how to provide explicit non-interactive consent.
-4. **Given** a named session exists and the user supplies `ws down SESSION_NAME --yes`, **When** the
+4. **US7-AS4**. **Given** a named session exists and the user supplies `ws down SESSION_NAME --yes`, **When** the
    command runs, **Then** `ws` kills only that validated session without prompting and reports success.
-5. **Given** the requested session does not exist, **When** the user invokes `ws down SESSION_NAME`,
+5. **US7-AS5**. **Given** the requested session does not exist, **When** the user invokes `ws down SESSION_NAME`,
    **Then** `ws` reports that no such session exists and does not affect other sessions.
-6. **Given** no session name is supplied to `ws down` while the user is inside tmux, **When** the user
+6. **US7-AS6**. **Given** no session name is supplied to `ws down` while the user is inside tmux, **When** the user
    invokes it interactively, **Then** `ws` identifies the current session and asks for explicit
    confirmation before killing it.
-7. **Given** the user is in `SESSION_ONE` and `OTHER_SESSION` exists, **When** the user invokes
+7. **US7-AS7**. **Given** the user is in `SESSION_ONE` and `OTHER_SESSION` exists, **When** the user invokes
    `ws change OTHER_SESSION`, **Then** `ws` switches the current tmux client to `OTHER_SESSION` and
    leaves `SESSION_ONE` running in the background.
-8. **Given** the user is in `SESSION_ONE` and `OTHER_SESSION` does not exist, **When** the user invokes
+8. **US7-AS8**. **Given** the user is in `SESSION_ONE` and `OTHER_SESSION` does not exist, **When** the user invokes
    `ws change OTHER_SESSION`, **Then** `ws` returns a non-zero recoverable error, keeps the current
    client in `SESSION_ONE`, and does not read or apply `.ws`.
-9. **Given** the user is not inside tmux, **When** the user invokes `ws change OTHER_SESSION`,
+9. **US7-AS9**. **Given** the user is not inside tmux, **When** the user invokes `ws change OTHER_SESSION`,
    **Then** `ws` reports that changing the current tmux client is unavailable and does not create or
    modify a session.
 
@@ -424,16 +427,16 @@ requests only the selected entry and never exports all entries to a session.
 
 **Acceptance Scenarios**:
 
-1. **Given** the user invokes `ws clip NAMESPACE ITEM`, **When** that utility is implemented, **Then**
+1. **US8-AS1**. **Given** the user invokes `ws clip NAMESPACE ITEM`, **When** that utility is implemented, **Then**
    it requests only the credential associated with that namespace and item and sends it to the
    selected clipboard provider without printing it.
-2. **Given** the user invokes an interactive utility that has not yet been specified, **When** `ws`
+2. **US8-AS2**. **Given** the user invokes an interactive utility that has not yet been specified, **When** `ws`
    parses it, **Then** `ws` reports that the command is unavailable or not yet supported and does not
    alter a tmux session.
-3. **Given** the local `pass` store is locked or unavailable, **When** a credential-dependent command
+3. **US8-AS3**. **Given** the local `pass` store is locked or unavailable, **When** a credential-dependent command
    runs, **Then** `ws` reports an actionable failure without showing the master passphrase, entry
    value, or provider internals containing secret material.
-4. **Given** a workspace command does not require credentials, **When** the user invokes
+4. **US8-AS4**. **Given** a workspace command does not require credentials, **When** the user invokes
    `ws up SESSION_NAME`, **Then** `ws` does not access `pass`, set secret environment variables, or
    place credentials in tmux commands or shell history.
 
@@ -457,6 +460,8 @@ command-specific authorization remain separate specifications.
   but never create zero usable windows.
 - The `.ws` file uses tabs, inconsistent indentation, duplicate window names, duplicate pane
   identifiers, unsupported pane positions, or an invalid environment assignment.
+- The `.ws` file nests panes deeper than the documented maximum of 32 levels: the declaration that
+  exceeds the limit is rejected with a validation error instead of risking unbounded recursion.
 - A relative path, command, or environment value contains spaces, `=`, `:`, shell metacharacters, or
   a newline; values must not be silently truncated or reinterpreted.
 - A configured path is outside the project directory, is inaccessible, or disappears between
@@ -628,6 +633,58 @@ command-specific authorization remain separate specifications.
 - **SC-012**: The help output describes every supported MVP command, its required positional arguments,
   its side effects, the distinction between `up` and `change`, and at least one configured-workspace
   example without relying on local credentials.
+
+## Traceability
+
+Each acceptance scenario carries a stable `US<story>-AS<n>` id per the constitution's testing
+principle. "Owning test" names the automated test whose `// Scenario: US<story>-AS<n>` marker
+verifies that scenario's observable behavior; "Pending" marks a scenario whose implementation and
+test do not exist yet, naming the `tasks.md` phase and task ids expected to close it.
+
+| Scenario | Owning test / status |
+|----------|----------------------|
+| US1-AS1 | `tests/cli_help.rs::given_missing_dependencies_when_running_global_help_then_uses_stdout` |
+| US1-AS2 | `tests/cli_help.rs::given_missing_dependencies_when_running_without_arguments_then_prints_help` |
+| US1-AS3 | `tests/cli_help.rs::given_missing_dependencies_when_requesting_version_then_prints_only_version` |
+| US1-AS4 | `tests/cli_help.rs::given_an_unknown_command_when_invoked_then_returns_helpful_stderr_error` |
+| US1-AS5 | `tests/cli_help.rs::given_missing_dependencies_when_requesting_config_help_then_prints_normative_reference` |
+| US2-AS1 | `tests/cli_help.rs::given_missing_dependencies_when_requesting_config_help_then_prints_normative_reference` |
+| US2-AS2 | Pending — Phase 7 (T040-T042): requires `ws up` to apply a valid `.ws` file against real tmux. |
+| US2-AS3 | Pending — Phase 8 (T048): requires proof that an invalid document creates no session. |
+| US2-AS4 | Pending — Phase 7 (T041): requires observing a custom command execute under tmux. |
+| US3-AS1 | Pending — Phase 5 (T026). |
+| US3-AS2 | Pending — Phase 5 (T028). |
+| US3-AS3 | Pending — Phase 5 (T027). |
+| US3-AS4 | Pending — Phase 5 (T029). |
+| US3-AS5 | Pending — Phase 5 (T029). |
+| US3-AS6 | Pending — Phase 5 (T029). |
+| US4-AS1 | Pending — Phase 6 (T035). |
+| US4-AS2 | Pending — Phase 6 (T035). |
+| US4-AS3 | Pending — Phase 6 (T036). |
+| US5-AS1 | Pending — Phase 7 (T040, T042). |
+| US5-AS2 | Pending — Phase 7 (T042). |
+| US5-AS3 | Pending — Phase 7 (T042). |
+| US5-AS4 | Pending — Phase 7 (T040). |
+| US5-AS5 | Pending — Phase 7 (T042). |
+| US5-AS6 | Pending — Phase 7 (T042). |
+| US5-AS7 | Pending — Phase 7 (T041). |
+| US6-AS1 | Pending — Phase 8 (T048). |
+| US6-AS2 | Pending — Phase 8 (T048-T049). |
+| US6-AS3 | Pending — Phase 8 (T050, T053). |
+| US6-AS4 | Pending — Phase 8 (T049). |
+| US7-AS1 | Pending — Phase 9 (T056). |
+| US7-AS2 | Pending — Phase 9 (T056). |
+| US7-AS3 | Pending — Phase 9 (T056). |
+| US7-AS4 | Pending — Phase 9 (T056). |
+| US7-AS5 | Pending — Phase 9 (T054-T056). |
+| US7-AS6 | Pending — Phase 9 (T056). |
+| US7-AS7 | Pending — Phase 9 (T054). |
+| US7-AS8 | Pending — Phase 9 (T055). |
+| US7-AS9 | Pending — Phase 9 (T055). |
+| US8-AS1 | Pending — out of MVP scope (spec's Security design decision); a future `clip` mapping specification. |
+| US8-AS2 | Pending — Phase 10 (T062). |
+| US8-AS3 | Pending — Phase 10 (T063). |
+| US8-AS4 | Pending — Phase 10 (T063). |
 
 ## Assumptions
 
