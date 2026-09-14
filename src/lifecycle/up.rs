@@ -6,7 +6,8 @@ use crate::error::AppError;
 use crate::terminal::TerminalContext;
 use crate::terminal::launcher::{TerminalLauncher, TerminalLauncherError};
 use crate::tmux::client::{TmuxClient, TmuxError};
-use crate::tmux::session;
+use crate::tmux::launch_plan::LaunchPlan;
+use crate::tmux::{session, window};
 
 /// Create or reconnect to `session_name`, following the specification's create-or-reconnect
 /// contract (FR-006 through FR-019).
@@ -27,27 +28,51 @@ pub fn execute(
     }
 
     let definition = load_definition(project_dir)?;
-    let first_window = definition
-        .windows
-        .first()
-        .expect("a validated workspace definition always has at least one window");
+    let plan = LaunchPlan::new(session_name.to_owned(), definition);
 
-    match session::create(tmux, session_name, &first_window.path, &first_window.name) {
+    match apply_launch_plan(tmux, &plan) {
         Ok(()) => {}
         // Another invocation won the race and created the target first; reconnect to it instead
-        // of failing (US3-AS6).
-        Err(error) if session::is_duplicate_session_error(&error) => {}
-        Err(error) => return Err(map_tmux_error(error)),
+        // of failing (US3-AS6). This only applies to the first window's `new-session` call, the
+        // only one that can fail this way.
+        Err((_, error)) if session::is_duplicate_session_error(&error) => {}
+        Err((window_name, error)) => {
+            // The first window's own creation call (`new-session`) is what brings the session
+            // into existence; if a later window or pane failed instead, roll back the session
+            // this invocation started rather than leaving a half-built workspace (US6-AS4). A
+            // pre-existing session with the same name was already handled by the existing-session
+            // fast path above and is never reached here.
+            rollback_partial_session(tmux, session_name);
+            return Err(map_tmux_error_with_window(&window_name, error));
+        }
     }
 
     connect(tmux, terminal_launcher, terminal, session_name)
 }
 
+/// Materialize every window (and its recursive pane tree) in declaration order (FR-011),
+/// identifying which window a failure occurred in.
+fn apply_launch_plan(tmux: &TmuxClient, plan: &LaunchPlan) -> Result<(), (String, TmuxError)> {
+    for (index, definition) in plan.windows().iter().enumerate() {
+        window::materialize(tmux, plan.session_name(), definition, index == 0)
+            .map_err(|error| (definition.name.clone(), error))?;
+    }
+    Ok(())
+}
+
+/// Remove `session_name` if this invocation's launch plan managed to create it before a later
+/// step failed. Best-effort: the original setup failure is what gets reported to the user either
+/// way, so a failure here is not surfaced separately.
+fn rollback_partial_session(tmux: &TmuxClient, session_name: &str) {
+    if matches!(session::exists(tmux, session_name), Ok(true)) {
+        let _ = session::kill(tmux, session_name);
+    }
+}
+
 /// Load and validate the project's `.ws` file.
 ///
-/// A literally missing file currently surfaces as a configuration error. The documented
-/// zero-configuration default (User Story 4) extends this to construct the default single-window
-/// workspace instead of requiring a file to exist.
+/// A missing or empty file resolves to the documented default single-window workspace rather
+/// than an error.
 fn load_definition(
     project_dir: &Path,
 ) -> Result<ws::config::ValidatedWorkspaceDefinition, AppError> {
@@ -69,6 +94,17 @@ fn connect(
     } else {
         tmux.attach(session_name).map_err(map_tmux_error)?;
         Ok(String::new())
+    }
+}
+
+/// Wrap a launch-plan failure with the name of the window it occurred in, so the user can locate
+/// the affected declaration (FR-015) without exposing raw internal state.
+fn map_tmux_error_with_window(window_name: &str, error: TmuxError) -> AppError {
+    match map_tmux_error(error) {
+        AppError::OperationFailed { message } => AppError::OperationFailed {
+            message: format!("window `{window_name}`: {message}"),
+        },
+        other => other,
     }
 }
 

@@ -113,18 +113,22 @@ impl TmuxClient {
     ///
     /// Unlike [`Self::attach`], this only makes sense when the invoking process is already a
     /// tmux client (inside a pane); it returns immediately and does not take over stdio.
-    // Consumed by `ws change` and the current-session case of `ws down` in a later phase (US7).
-    #[allow(dead_code)]
     pub fn switch_client(&self, session_name: &str) -> Result<(), TmuxError> {
         self.execute(["switch-client", "-t", session_name])?;
+        Ok(())
+    }
+
+    /// Detach the current tmux client without killing its session.
+    ///
+    /// Only meaningful when the invoking process is already a tmux client.
+    pub fn detach_client(&self) -> Result<(), TmuxError> {
+        self.execute(["detach-client"])?;
         Ok(())
     }
 
     /// Return the name of the session attached to the current tmux client.
     ///
     /// Only meaningful when the invoking process is already a tmux client.
-    // Consumed by nameless `ws down` inside tmux in a later phase (US7).
-    #[allow(dead_code)]
     pub fn current_session(&self) -> Result<String, TmuxError> {
         let output = self.execute(["display-message", "-p", "#S"])?;
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())

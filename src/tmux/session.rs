@@ -1,6 +1,7 @@
-//! Tmux session probing and creation, using the [`TmuxClient`] argv boundary.
-
-use std::path::Path;
+//! Tmux session probing, using the [`TmuxClient`] argv boundary.
+//!
+//! Session creation lives in [`super::window::materialize`], which creates the session together
+//! with its first window (`new-session` inherently creates exactly one window).
 
 use super::client::{TmuxClient, TmuxError};
 
@@ -17,28 +18,12 @@ pub fn exists(tmux: &TmuxClient, name: &str) -> Result<bool, TmuxError> {
     }
 }
 
-/// Create a new detached session named `name`, rooted at `path`, with one window named
-/// `window_name`.
+/// Terminate the session named `name`.
 ///
-/// The session is created detached (`-d`): this call never attaches the current process, so the
-/// caller decides how to connect afterward (direct attach outside tmux, or a separate terminal
-/// launcher inside tmux).
-pub fn create(
-    tmux: &TmuxClient,
-    name: &str,
-    path: &Path,
-    window_name: &str,
-) -> Result<(), TmuxError> {
-    tmux.execute([
-        "new-session",
-        "-d",
-        "-s",
-        name,
-        "-c",
-        &path.to_string_lossy(),
-        "-n",
-        window_name,
-    ])?;
+/// Used to roll back a session this invocation partially created when a later step in its
+/// launch plan fails, so setup failures never leave a half-built session behind.
+pub fn kill(tmux: &TmuxClient, name: &str) -> Result<(), TmuxError> {
+    tmux.execute(["kill-session", "-t", name])?;
     Ok(())
 }
 
@@ -58,10 +43,9 @@ pub fn is_duplicate_session_error(error: &TmuxError) -> bool {
 mod tests {
     use std::ffi::{OsStr, OsString};
     use std::io;
-    use std::path::Path;
     use std::process::{ExitStatus, Output};
 
-    use super::{create, exists, is_duplicate_session_error};
+    use super::{exists, is_duplicate_session_error};
     use crate::tmux::client::{CommandRunner, TmuxClient, TmuxError};
 
     fn success_status() -> ExitStatus {
@@ -88,14 +72,6 @@ mod tests {
         })
     }
 
-    fn duplicate_runner(_: &OsStr, _: &[OsString]) -> io::Result<Output> {
-        Ok(Output {
-            status: failure_status(),
-            stdout: Vec::new(),
-            stderr: b"duplicate session: target".to_vec(),
-        })
-    }
-
     #[test]
     fn given_a_found_session_when_checked_then_it_exists() {
         let client = TmuxClient::with_runner(found_runner as CommandRunner);
@@ -109,37 +85,11 @@ mod tests {
     }
 
     #[test]
-    fn given_creation_arguments_when_created_then_the_argv_carries_name_path_and_window() {
-        fn asserting_runner(_: &OsStr, args: &[OsString]) -> io::Result<Output> {
-            assert_eq!(
-                args,
-                [
-                    OsString::from("new-session"),
-                    OsString::from("-d"),
-                    OsString::from("-s"),
-                    OsString::from("target"),
-                    OsString::from("-c"),
-                    OsString::from("/tmp/project"),
-                    OsString::from("-n"),
-                    OsString::from("root"),
-                ]
-            );
-            Ok(Output {
-                status: success_status(),
-                stdout: Vec::new(),
-                stderr: Vec::new(),
-            })
-        }
-        let client = TmuxClient::with_runner(asserting_runner as CommandRunner);
-        create(&client, "target", Path::new("/tmp/project"), "root")
-            .expect("creation should succeed");
-    }
-
-    #[test]
     fn given_a_duplicate_session_error_when_classified_then_it_is_recognized_as_a_race() {
-        let client = TmuxClient::with_runner(duplicate_runner as CommandRunner);
-        let error = create(&client, "target", Path::new("/tmp/project"), "root")
-            .expect_err("the fake duplicate response should surface as an error");
+        let error = TmuxError::CommandFailed {
+            status: "1".to_owned(),
+            stderr: "duplicate session: target".to_owned(),
+        };
         assert!(is_duplicate_session_error(&error));
     }
 

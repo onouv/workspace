@@ -17,6 +17,7 @@ use crate::app::{App, AppDependencies};
 use crate::cli::Cli;
 use crate::error::render_error;
 use crate::terminal::TerminalContext;
+use crate::terminal::confirm::TerminalConfirm;
 use crate::terminal::launcher::ConfiguredTerminalLauncher;
 use crate::tmux::client::TmuxClient;
 
@@ -26,6 +27,7 @@ fn main() {
         tmux: TmuxClient::default(),
         terminal_launcher: Box::new(ConfiguredTerminalLauncher::from_env()),
         terminal: TerminalContext::detect(),
+        confirm: Box::new(TerminalConfirm),
     });
 
     match app.execute(cli) {

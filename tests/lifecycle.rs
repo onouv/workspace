@@ -219,3 +219,307 @@ fn given_no_terminal_launcher_is_configured_when_up_is_invoked_inside_tmux_for_a
         "the current client must not be attached or switched: {calls}"
     );
 }
+
+#[test]
+fn given_no_ws_file_when_up_is_invoked_then_it_creates_one_usable_default_window() {
+    // Scenario: US4-AS1, US4-AS2
+    let project = support::temporary_project();
+    let path_dir = support::fake_tmux_path_dir();
+    let state_dir = support::temporary_project();
+    let session_name = support::test_session_name("default-missing");
+
+    support::ws_command()
+        .args(["up", &session_name])
+        .current_dir(project.path())
+        .env("PATH", path_dir.path())
+        .env("WS_FAKE_TMUX_STATE", state_dir.path())
+        .env_remove("TMUX")
+        .assert()
+        .success();
+
+    let calls = read_calls(state_dir.path());
+    assert!(calls.contains("new-session"), "{calls}");
+    assert!(calls.contains("-n root"), "{calls}");
+}
+
+#[test]
+fn given_an_empty_ws_file_when_up_is_invoked_then_it_creates_one_usable_default_window() {
+    // Scenario: US4-AS1, US4-AS2
+    let project = support::temporary_project();
+    std::fs::write(project.path().join(".ws"), "")
+        .expect("the empty .ws fixture should be writable");
+    let path_dir = support::fake_tmux_path_dir();
+    let state_dir = support::temporary_project();
+    let session_name = support::test_session_name("default-empty");
+
+    support::ws_command()
+        .args(["up", &session_name])
+        .current_dir(project.path())
+        .env("PATH", path_dir.path())
+        .env("WS_FAKE_TMUX_STATE", state_dir.path())
+        .env_remove("TMUX")
+        .assert()
+        .success();
+
+    let calls = read_calls(state_dir.path());
+    assert!(calls.contains("new-session"), "{calls}");
+    assert!(calls.contains("-n root"), "{calls}");
+}
+
+#[test]
+fn given_tmux_is_unavailable_when_up_is_invoked_then_it_reports_a_recoverable_dependency_error() {
+    // Scenario: US4-AS3
+    let project = support::temporary_project();
+
+    support::ws_command()
+        .args(["up", "target"])
+        .current_dir(project.path())
+        .env("PATH", "/path/that/does/not/exist")
+        .env_remove("TMUX")
+        .assert()
+        .failure()
+        .code(4)
+        .stderr(predicate::str::contains("tmux"));
+}
+
+#[test]
+fn given_an_invalid_ws_file_when_up_is_invoked_then_no_session_is_created() {
+    // Scenario: US2-AS3, US6-AS1
+    let project = support::temporary_project();
+    std::fs::write(project.path().join(".ws"), "not: [valid")
+        .expect("the deliberately invalid .ws fixture should be writable");
+    let path_dir = support::fake_tmux_path_dir();
+    let state_dir = support::temporary_project();
+    let session_name = support::test_session_name("invalid-config");
+
+    support::ws_command()
+        .args(["up", &session_name])
+        .current_dir(project.path())
+        .env("PATH", path_dir.path())
+        .env("WS_FAKE_TMUX_STATE", state_dir.path())
+        .env_remove("TMUX")
+        .assert()
+        .failure()
+        .code(3);
+
+    let calls = read_calls(state_dir.path());
+    assert!(calls.contains("has-session"), "{calls}");
+    assert!(
+        !calls.contains("new-session")
+            && !calls.contains("new-window")
+            && !calls.contains("split-window"),
+        "an invalid document must not mutate tmux at all: {calls}"
+    );
+}
+
+#[test]
+fn given_a_referenced_directory_does_not_exist_when_up_is_invoked_then_it_reports_the_declaration_and_creates_no_session()
+ {
+    // Scenario: US6-AS2
+    let project = support::temporary_project();
+    std::fs::write(
+        project.path().join(".ws"),
+        "version: 1\nwindows:\n  - name: root\n    path: ./does-not-exist\n",
+    )
+    .expect("the .ws fixture should be writable");
+    let path_dir = support::fake_tmux_path_dir();
+    let state_dir = support::temporary_project();
+    let session_name = support::test_session_name("missing-dir");
+
+    support::ws_command()
+        .args(["up", &session_name])
+        .current_dir(project.path())
+        .env("PATH", path_dir.path())
+        .env("WS_FAKE_TMUX_STATE", state_dir.path())
+        .env_remove("TMUX")
+        .assert()
+        .failure()
+        .code(3)
+        .stderr(predicate::str::contains("window[0]"));
+
+    let calls = read_calls(state_dir.path());
+    assert!(
+        !calls.contains("new-session"),
+        "an unresolvable path must not create a session: {calls}"
+    );
+}
+
+#[test]
+fn given_a_secret_like_environment_value_when_a_launch_step_fails_then_it_never_reaches_ws_own_output()
+ {
+    // Scenario: US6-AS3
+    let project = support::temporary_project();
+    std::fs::write(
+        project.path().join(".ws"),
+        "version: 1\nwindows:\n  - name: root\n    path: .\n    env:\n      API_TOKEN: sekrit-value-should-not-leak\n    panes:\n      - pos: left\n        command: git status\n      - pos: right\n        command: printenv\n",
+    )
+    .expect("the .ws fixture should be writable");
+    let path_dir = support::fake_tmux_path_dir();
+    let state_dir = support::temporary_project();
+    let session_name = support::test_session_name("redaction");
+
+    let assertion = support::ws_command()
+        .args(["up", &session_name])
+        .current_dir(project.path())
+        .env("PATH", path_dir.path())
+        .env("WS_FAKE_TMUX_STATE", state_dir.path())
+        .env("WS_FAKE_TMUX_FAIL_ON", "split-window")
+        .env_remove("TMUX")
+        .assert()
+        .failure();
+
+    let output = assertion.get_output();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!stdout.contains("sekrit-value-should-not-leak"), "{stdout}");
+    assert!(!stderr.contains("sekrit-value-should-not-leak"), "{stderr}");
+}
+
+#[test]
+fn given_an_existing_target_when_change_is_invoked_inside_tmux_then_it_switches_the_client() {
+    // Scenario: US7-AS7
+    let path_dir = support::fake_tmux_path_dir();
+    let state_dir = support::temporary_project();
+    let session_name = support::test_session_name("change-existing");
+    support::seed_fake_tmux_session(state_dir.path(), &session_name);
+
+    support::ws_command()
+        .args(["change", &session_name])
+        .env("PATH", path_dir.path())
+        .env("WS_FAKE_TMUX_STATE", state_dir.path())
+        .env("TMUX", "fake-tmux-socket,123,0")
+        .assert()
+        .success();
+
+    let calls = read_calls(state_dir.path());
+    assert!(
+        calls.contains(&format!("switch-client -t {session_name}")),
+        "{calls}"
+    );
+}
+
+#[test]
+fn given_a_missing_target_when_change_is_invoked_then_it_returns_a_recoverable_error() {
+    // Scenario: US7-AS8
+    let path_dir = support::fake_tmux_path_dir();
+    let state_dir = support::temporary_project();
+    let session_name = support::test_session_name("change-missing");
+
+    support::ws_command()
+        .args(["change", &session_name])
+        .env("PATH", path_dir.path())
+        .env("WS_FAKE_TMUX_STATE", state_dir.path())
+        .env("TMUX", "fake-tmux-socket,123,0")
+        .assert()
+        .failure()
+        .code(5);
+
+    let calls = read_calls(state_dir.path());
+    assert!(!calls.contains("switch-client"), "{calls}");
+}
+
+#[test]
+fn given_outside_tmux_when_change_is_invoked_then_it_fails_without_contacting_tmux() {
+    // Scenario: US7-AS9
+    support::ws_command()
+        .args(["change", "target"])
+        .env("PATH", "/path/that/does/not/exist")
+        .env_remove("TMUX")
+        .assert()
+        .failure()
+        .code(5)
+        .stderr(predicate::str::contains("inside tmux"));
+}
+
+#[test]
+fn given_yes_when_down_is_invoked_then_it_kills_the_named_session_without_prompting() {
+    // Scenario: US7-AS4
+    let path_dir = support::fake_tmux_path_dir();
+    let state_dir = support::temporary_project();
+    let session_name = support::test_session_name("down-yes");
+    support::seed_fake_tmux_session(state_dir.path(), &session_name);
+
+    support::ws_command()
+        .args(["down", &session_name, "--yes"])
+        .env("PATH", path_dir.path())
+        .env("WS_FAKE_TMUX_STATE", state_dir.path())
+        .env_remove("TMUX")
+        .assert()
+        .success();
+
+    let calls = read_calls(state_dir.path());
+    assert!(
+        calls.contains(&format!("kill-session -t {session_name}")),
+        "{calls}"
+    );
+}
+
+#[test]
+fn given_no_yes_and_no_tty_when_down_is_invoked_then_it_refuses() {
+    // Scenario: US7-AS3
+    let path_dir = support::fake_tmux_path_dir();
+    let state_dir = support::temporary_project();
+    let session_name = support::test_session_name("down-no-tty");
+    support::seed_fake_tmux_session(state_dir.path(), &session_name);
+
+    support::ws_command()
+        .args(["down", &session_name])
+        .env("PATH", path_dir.path())
+        .env("WS_FAKE_TMUX_STATE", state_dir.path())
+        .env_remove("TMUX")
+        .assert()
+        .failure()
+        .code(6)
+        .stderr(predicate::str::contains("--yes"));
+
+    let calls = read_calls(state_dir.path());
+    assert!(!calls.contains("kill-session"), "{calls}");
+}
+
+#[test]
+fn given_a_missing_target_when_down_is_invoked_then_it_reports_no_such_session() {
+    // Scenario: US7-AS5
+    let path_dir = support::fake_tmux_path_dir();
+    let state_dir = support::temporary_project();
+    let session_name = support::test_session_name("down-missing");
+
+    support::ws_command()
+        .args(["down", &session_name, "--yes"])
+        .env("PATH", path_dir.path())
+        .env("WS_FAKE_TMUX_STATE", state_dir.path())
+        .env_remove("TMUX")
+        .assert()
+        .failure()
+        .code(5);
+}
+
+#[test]
+fn given_inside_tmux_when_exit_is_invoked_then_it_detaches_without_killing_the_session() {
+    // Scenario: US7-AS1
+    let path_dir = support::fake_tmux_path_dir();
+    let state_dir = support::temporary_project();
+
+    support::ws_command()
+        .args(["exit"])
+        .env("PATH", path_dir.path())
+        .env("WS_FAKE_TMUX_STATE", state_dir.path())
+        .env("TMUX", "fake-tmux-socket,123,0")
+        .assert()
+        .success();
+
+    let calls = read_calls(state_dir.path());
+    assert!(calls.contains("detach-client"), "{calls}");
+    assert!(!calls.contains("kill-session"), "{calls}");
+}
+
+#[test]
+fn given_outside_tmux_when_exit_is_invoked_then_it_fails_clearly() {
+    support::ws_command()
+        .args(["exit"])
+        .env("PATH", "/path/that/does/not/exist")
+        .env_remove("TMUX")
+        .assert()
+        .failure()
+        .code(5)
+        .stderr(predicate::str::contains("tmux client"));
+}

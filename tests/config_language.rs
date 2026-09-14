@@ -139,6 +139,22 @@ fn given_an_empty_document_when_loaded_then_the_documented_default_is_returned()
 }
 
 #[test]
+fn given_no_ws_file_when_loaded_then_the_documented_default_is_returned() {
+    // Scenario: US4-AS1
+    let project = project_with_directories();
+    let path = project.path().join(".ws");
+
+    let definition = load(&path).expect("a missing .ws should use the default workspace");
+
+    assert_eq!(definition.windows.len(), 1);
+    assert_eq!(definition.windows[0].name, "root");
+    assert_eq!(
+        definition.windows[0].path,
+        project.path().canonicalize().unwrap()
+    );
+}
+
+#[test]
 fn given_invalid_yaml_schema_or_semantics_when_loaded_then_the_document_is_rejected() {
     assert_invalid("version: [1", "line");
     assert_invalid("version: 1\nwindows: nope\n", "windows");

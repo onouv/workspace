@@ -1,6 +1,7 @@
 use std::env;
 use std::io::{self, IsTerminal};
 
+pub mod confirm;
 pub mod launcher;
 
 /// Terminal capabilities relevant to prompting and workspace attachment.
@@ -25,22 +26,9 @@ impl TerminalContext {
     pub const fn inside_tmux(self) -> bool {
         self.inside_tmux
     }
-}
 
-// Consumed by the `down`/`exit` TTY-confirmation behavior added in a later phase (User Story 7).
-#[allow(dead_code)]
-impl TerminalContext {
-    /// Return whether interactive input is available.
-    pub const fn stdin_is_tty(self) -> bool {
-        self.stdin_is_tty
-    }
-
-    /// Return whether interactive output is available.
-    pub const fn stdout_is_tty(self) -> bool {
-        self.stdout_is_tty
-    }
-
-    /// Return whether prompting is safe for this process.
+    /// Return whether prompting is safe for this process: both stdin and stdout must be a real
+    /// terminal, since a redirected/piped stream cannot support an interactive prompt.
     pub const fn is_interactive(self) -> bool {
         self.stdin_is_tty && self.stdout_is_tty
     }

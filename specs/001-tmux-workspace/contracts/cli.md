@@ -92,3 +92,16 @@ value. When the variable is unset, opening a separate terminal reports the recov
 - Normal results use stdout.
 - Diagnostics, progress, and logs use stderr.
 - Secrets never use either stream.
+
+## Supported tmux versions
+
+`ws` requires a tmux new enough to support `-e KEY=VALUE` and `-P -F` on `new-session`,
+`new-window`, and `split-window` (tmux 3.0 or later); verified against tmux 3.2a. No version
+check is performed at runtime — an incompatible tmux surfaces as an ordinary `OperationFailed`
+tmux command failure.
+
+## TTY behavior
+
+Interactive prompts (`ws down` confirmation) require both stdin and stdout to be a real terminal;
+a redirected or piped stream on either is treated as non-interactive. Non-interactive `ws down`
+without `--yes` refuses rather than hanging. All other commands are unaffected by TTY state.

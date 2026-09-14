@@ -6,8 +6,9 @@ use std::path::PathBuf;
 use crate::cli::{Cli, Command, HelpTopic};
 use crate::error::AppError;
 use crate::help;
-use crate::lifecycle::up;
+use crate::lifecycle::{change, clip, down, exit, up};
 use crate::terminal::TerminalContext;
+use crate::terminal::confirm::Confirm;
 use crate::terminal::launcher::TerminalLauncher;
 use crate::tmux::client::TmuxClient;
 
@@ -19,6 +20,8 @@ pub struct AppDependencies {
     pub terminal_launcher: Box<dyn TerminalLauncher>,
     /// Terminal capabilities detected for the current process.
     pub terminal: TerminalContext,
+    /// Confirmation prompt used by destructive commands.
+    pub confirm: Box<dyn Confirm>,
 }
 
 /// Application orchestration boundary.
@@ -38,8 +41,8 @@ impl App {
     /// Execute a parsed command and return user-facing output.
     ///
     /// Discovery commands return static text without reading `.ws`, contacting tmux, invoking a
-    /// password store, prompting, or opening a terminal. Remaining lifecycle commands (`change`,
-    /// `down`, `exit`, `clip`) are reserved for later implementation.
+    /// password store, prompting, or opening a terminal. The reserved `clip` namespace remains
+    /// unimplemented (User Story 8).
     pub fn execute(&self, cli: Cli) -> Result<String, AppError> {
         match cli.command {
             None | Some(Command::Help(crate::cli::HelpArgs { topic: None })) => Ok(help::general()),
@@ -56,9 +59,22 @@ impl App {
                     &session_name,
                 )
             }
-            Some(command) => Err(AppError::OperationFailed {
-                message: format!("command is not implemented yet: {command:?}"),
-            }),
+            Some(Command::Change(crate::cli::SessionArgs { session_name })) => change::execute(
+                &self.dependencies.tmux,
+                self.dependencies.terminal,
+                &session_name,
+            ),
+            Some(Command::Exit) => {
+                exit::execute(&self.dependencies.tmux, self.dependencies.terminal)
+            }
+            Some(Command::Down(crate::cli::DownArgs { session_name, yes })) => down::execute(
+                &self.dependencies.tmux,
+                self.dependencies.terminal,
+                self.dependencies.confirm.as_ref(),
+                session_name.as_deref(),
+                yes,
+            ),
+            Some(Command::Clip(_)) => clip::execute(),
         }
     }
 }
