@@ -1,5 +1,6 @@
 /target
 
 # Local secret material; nested .secrets directories are ignored as well.
+**/.ws
 .secrets/
 **/.secrets/

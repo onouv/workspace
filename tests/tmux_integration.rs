@@ -133,6 +133,42 @@ fn given_a_window_environment_when_up_is_invoked_then_it_is_inherited_by_its_pan
 }
 
 #[test]
+fn given_a_pane_command_when_up_is_invoked_then_its_pane_is_set_to_remain_after_the_command_exits()
+{
+    // Scenario: FR-045
+    let project = support::temporary_project();
+    std::fs::write(
+        project.path().join(".ws"),
+        "version: 1\nwindows:\n  - name: root\n    path: .\n    command: git status\n",
+    )
+    .expect("the .ws fixture should be writable");
+    let path_dir = support::fake_tmux_path_dir();
+    let state_dir = support::temporary_project();
+    let session_name = support::test_session_name("remain-on-exit");
+
+    support::ws_command()
+        .args(["up", &session_name])
+        .current_dir(project.path())
+        .env("PATH", path_dir.path())
+        .env("WS_FAKE_TMUX_STATE", state_dir.path())
+        .env_remove("TMUX")
+        .assert()
+        .success();
+
+    let calls = read_calls(state_dir.path());
+    let new_session = calls
+        .lines()
+        .find(|line| line.starts_with("new-session"))
+        .unwrap_or_else(|| panic!("expected a new-session call: {calls}"));
+    // The pane sets remain-on-exit on itself (via its own $TMUX_PANE) before exec-ing into the
+    // configured command, so a command that exits immediately never races tmux's own cleanup.
+    assert!(
+        new_session.contains(r#"set-option -p -t "$TMUX_PANE" remain-on-exit on; exec git status"#),
+        "{new_session}"
+    );
+}
+
+#[test]
 fn given_a_command_with_shell_syntax_when_up_is_invoked_then_it_is_passed_through_as_one_argument()
 {
     // Scenario: US5-AS7
