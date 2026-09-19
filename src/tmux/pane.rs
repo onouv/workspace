@@ -81,15 +81,23 @@ pub fn materialize_group(
     materialize(tmux, &new_anchor, resolved)
 }
 
-/// Wrap a configured `command` so its pane survives the command exiting, instead of tmux
-/// destroying the pane the instant the process behind it ends.
+/// Type a configured `command` into `pane_id`'s own shell, as its normal interactive shell reads
+/// it from the pty, followed by Enter.
 ///
-/// The pane sets `remain-on-exit` on itself, via its own `$TMUX_PANE`, before `exec`ing into
-/// `command`. Setting the option in a follow-up tmux call after pane creation loses the race
-/// against a command that exits immediately (for example `git status`): tmux may already have
-/// destroyed the pane by the time that call runs.
-pub(crate) fn persistent_command(command: &str) -> String {
-    format!(r#"tmux set-option -p -t "$TMUX_PANE" remain-on-exit on; exec {command}"#)
+/// Sending it as keystrokes rather than launching it as the pane's own process means the pane
+/// keeps running the user's normal interactive shell throughout: the shell's startup files (and
+/// so the aliases they define) are already loaded before the keys arrive, the command is
+/// interpreted exactly as it would be if typed at that prompt, and the pane is never at risk of
+/// closing when the command exits — its shell is what tmux is actually watching. `-l` sends the
+/// command literally, so its own text is never mistaken for a key name.
+pub(crate) fn send_command(
+    tmux: &TmuxClient,
+    pane_id: &str,
+    command: &str,
+) -> Result<(), TmuxError> {
+    tmux.execute(["send-keys", "-t", pane_id, "-l", "--", command])?;
+    tmux.execute(["send-keys", "-t", pane_id, "Enter"])?;
+    Ok(())
 }
 
 /// Split `anchor` to create one new pane at `pos`, with `content`'s path, command, and
@@ -120,12 +128,12 @@ fn split(
     args.push("-P".into());
     args.push("-F".into());
     args.push("#{pane_id}".into());
-    if let Some(command) = &content.command {
-        args.push("--".into());
-        args.push(persistent_command(command).into());
-    }
     let output = tmux.execute(args)?;
-    Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
+    let pane_id = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+    if let Some(command) = &content.command {
+        send_command(tmux, &pane_id, command)?;
+    }
+    Ok(pane_id)
 }
 
 /// `left`/`right` are horizontal splits; `top`/`bottom` are vertical splits, each placing the
@@ -141,11 +149,43 @@ const fn split_flags(pos: PanePosition) -> (&'static str, bool) {
 
 #[cfg(test)]
 mod tests {
+    use std::cell::RefCell;
     use std::collections::BTreeMap;
+    use std::ffi::{OsStr, OsString};
+    use std::io;
+    use std::process::{ExitStatus, Output};
 
     use ws::config::{PanePosition, ValidatedPaneDefinition};
 
-    use super::{persistent_command, resolve_root};
+    use super::{resolve_root, send_command};
+    use crate::tmux::client::{CommandRunner, TmuxClient};
+
+    thread_local! {
+        static CALLS: RefCell<Vec<Vec<String>>> = const { RefCell::new(Vec::new()) };
+    }
+
+    fn success_status() -> ExitStatus {
+        std::os::unix::process::ExitStatusExt::from_raw(0)
+    }
+
+    fn recording_runner(_: &OsStr, args: &[OsString]) -> io::Result<Output> {
+        CALLS.with(|calls| {
+            calls.borrow_mut().push(
+                args.iter()
+                    .map(|arg| arg.to_string_lossy().into_owned())
+                    .collect(),
+            )
+        });
+        Ok(Output {
+            status: success_status(),
+            stdout: Vec::new(),
+            stderr: Vec::new(),
+        })
+    }
+
+    fn calls() -> Vec<Vec<String>> {
+        CALLS.with(|calls| calls.borrow().clone())
+    }
 
     fn leaf(pos: PanePosition, command: Option<&str>) -> ValidatedPaneDefinition {
         ValidatedPaneDefinition {
@@ -205,12 +245,17 @@ mod tests {
     }
 
     #[test]
-    fn given_a_command_when_wrapped_then_it_sets_remain_on_exit_on_its_own_pane_before_exec() {
-        let wrapped = persistent_command("git status");
+    fn given_a_command_when_sent_then_it_is_typed_literally_and_followed_by_enter() {
+        let tmux = TmuxClient::with_runner(recording_runner as CommandRunner);
 
+        send_command(&tmux, "%3", "git status").expect("sending keys should succeed");
+
+        let calls = calls();
+        assert_eq!(calls.len(), 2, "{calls:#?}");
         assert_eq!(
-            wrapped,
-            r#"tmux set-option -p -t "$TMUX_PANE" remain-on-exit on; exec git status"#
+            calls[0],
+            ["send-keys", "-t", "%3", "-l", "--", "git status"]
         );
+        assert_eq!(calls[1], ["send-keys", "-t", "%3", "Enter"]);
     }
 }

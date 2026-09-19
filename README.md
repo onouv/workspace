@@ -63,7 +63,10 @@ windows:
 - `windows` and nested `panes` keep declaration order; the first window is selected when the
   session opens.
 - `left`/`right` are horizontal splits; `top`/`bottom` are vertical splits.
-- A window or pane without `command` starts your normal shell.
+- A window or pane without `command` starts your normal shell. One with `command` also starts your
+  normal shell, then types `command` into it followed by Enter, so aliases and functions from your
+  shell's startup files are available and the pane is still there, with a fresh prompt, once the
+  command finishes.
 - `env` values are inherited by descendant panes and can be overridden per pane; they are applied
   to the spawned process only, never written into tmux's own session-level environment table.
 - Relative paths resolve against the directory containing `.ws`.
