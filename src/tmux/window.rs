@@ -81,12 +81,12 @@ fn create(
     args.push("-P".into());
     args.push("-F".into());
     args.push("#{pane_id}".into());
-    if let Some(command) = command {
-        args.push("--".into());
-        args.push(pane::persistent_command(command).into());
-    }
     let output = tmux.execute(args)?;
-    Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
+    let pane_id = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+    if let Some(command) = command {
+        pane::send_command(tmux, &pane_id, command)?;
+    }
+    Ok(pane_id)
 }
 
 #[cfg(test)]
@@ -219,23 +219,32 @@ mod tests {
 
         let calls = calls();
         // Exactly 3 panes are created: the window itself (= `git`), then `logs`, then `shell`.
-        // `services` never gets its own tmux pane.
-        assert_eq!(calls.len(), 3, "{calls:#?}");
+        // `services` never gets its own tmux pane. A pane's own command follows its creation call
+        // as two `send-keys` calls (the literal text, then Enter), rather than being embedded in
+        // the creation call itself.
+        assert_eq!(calls.len(), 7, "{calls:#?}");
         assert_eq!(calls[0][0], "new-session");
-        assert!(calls[0].iter().any(|arg| arg.ends_with("exec git status")));
-        assert_eq!(calls[1][0], "split-window");
-        assert!(calls[1].contains(&"-h".to_owned()) && !calls[1].contains(&"-b".to_owned()));
-        assert!(
-            calls[1]
-                .iter()
-                .any(|arg| arg.ends_with("exec bash ./scripts/observe.sh"))
+        assert!(!calls[0].iter().any(|arg| arg.contains("git status")));
+        assert_eq!(
+            calls[1],
+            ["send-keys", "-t", "%0", "-l", "--", "git status"]
         );
-        assert_eq!(calls[2][0], "split-window");
-        assert!(calls[2].contains(&"-v".to_owned()));
-        assert!(
-            !calls[2]
-                .iter()
-                .any(|arg| arg.ends_with("exec bash ./scripts/observe.sh"))
+        assert_eq!(calls[2], ["send-keys", "-t", "%0", "Enter"]);
+        assert_eq!(calls[3][0], "split-window");
+        assert!(calls[3].contains(&"-h".to_owned()) && !calls[3].contains(&"-b".to_owned()));
+        assert_eq!(
+            calls[4],
+            [
+                "send-keys",
+                "-t",
+                "%3",
+                "-l",
+                "--",
+                "bash ./scripts/observe.sh"
+            ]
         );
+        assert_eq!(calls[5], ["send-keys", "-t", "%3", "Enter"]);
+        assert_eq!(calls[6][0], "split-window");
+        assert!(calls[6].contains(&"-v".to_owned()));
     }
 }

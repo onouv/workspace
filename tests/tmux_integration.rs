@@ -56,14 +56,15 @@ fn given_the_canonical_document_when_up_is_invoked_then_every_window_and_pane_is
     let calls = read_calls(state_dir.path());
     let lines: Vec<&str> = calls.lines().collect();
 
-    // The first window ("root") is created together with the session and runs its own command.
+    // The first window ("root") is created together with the session, and its command is typed
+    // into its pane afterward rather than embedded in the creation call.
     let new_session = lines
         .iter()
         .find(|line| line.starts_with("new-session"))
         .unwrap_or_else(|| panic!("expected a new-session call: {calls}"));
     assert!(new_session.contains("-n root"), "{new_session}");
     assert!(
-        new_session.contains("bash ./scripts/start-root.sh"),
+        !new_session.contains("bash ./scripts/start-root.sh"),
         "{new_session}"
     );
 
@@ -74,7 +75,33 @@ fn given_the_canonical_document_when_up_is_invoked_then_every_window_and_pane_is
         .find(|line| line.starts_with("new-window"))
         .unwrap_or_else(|| panic!("expected a new-window call: {calls}"));
     assert!(new_window.contains("-n development"), "{new_window}");
-    assert!(new_window.contains("git status"), "{new_window}");
+    assert!(!new_window.contains("git status"), "{new_window}");
+
+    // Every configured command is typed into its own pane as two `send-keys` calls: the literal
+    // text, then Enter.
+    let send_keys: Vec<&&str> = lines
+        .iter()
+        .filter(|line| line.starts_with("send-keys"))
+        .collect();
+    assert_eq!(send_keys.len(), 6, "{calls}");
+    assert!(
+        send_keys
+            .iter()
+            .any(|line| line.contains("-l -- bash ./scripts/start-root.sh")),
+        "{calls}"
+    );
+    assert!(
+        send_keys
+            .iter()
+            .any(|line| line.contains("-l -- git status")),
+        "{calls}"
+    );
+    assert!(
+        send_keys
+            .iter()
+            .any(|line| line.contains("-l -- bash ./scripts/observe.sh")),
+        "{calls}"
+    );
 
     // `services` (a command-less junction) never gets its own pane: exactly two splits occur —
     // one that fuses straight to `logs` (its first child), and one for `shell`.
@@ -85,7 +112,7 @@ fn given_the_canonical_document_when_up_is_invoked_then_every_window_and_pane_is
     assert_eq!(splits.len(), 2, "{calls}");
     assert!(splits[0].contains("-h"), "{}", splits[0]);
     assert!(
-        splits[0].contains("bash ./scripts/observe.sh"),
+        !splits[0].contains("bash ./scripts/observe.sh"),
         "{}",
         splits[0]
     );
@@ -133,8 +160,8 @@ fn given_a_window_environment_when_up_is_invoked_then_it_is_inherited_by_its_pan
 }
 
 #[test]
-fn given_a_pane_command_when_up_is_invoked_then_its_pane_is_set_to_remain_after_the_command_exits()
-{
+fn given_a_pane_command_when_up_is_invoked_then_it_is_typed_into_the_pane_instead_of_replacing_its_shell()
+ {
     // Scenario: FR-045
     let project = support::temporary_project();
     std::fs::write(
@@ -156,16 +183,28 @@ fn given_a_pane_command_when_up_is_invoked_then_its_pane_is_set_to_remain_after_
         .success();
 
     let calls = read_calls(state_dir.path());
-    let new_session = calls
-        .lines()
+    let lines: Vec<&str> = calls.lines().collect();
+    let new_session = lines
+        .iter()
         .find(|line| line.starts_with("new-session"))
         .unwrap_or_else(|| panic!("expected a new-session call: {calls}"));
-    // The pane sets remain-on-exit on itself (via its own $TMUX_PANE) before exec-ing into the
-    // configured command, so a command that exits immediately never races tmux's own cleanup.
+    // The window's own pane keeps running its normal shell — the command is never embedded in
+    // the creation call...
+    assert!(!new_session.contains("git status"), "{new_session}");
+    // ...it is instead typed into that shell as two `send-keys` calls (the literal text, then
+    // Enter), so the pane is never at risk from the command exiting: its shell is what tmux is
+    // actually watching, and it is still there, with a fresh prompt, once the command finishes.
+    let send_keys: Vec<&&str> = lines
+        .iter()
+        .filter(|line| line.starts_with("send-keys"))
+        .collect();
+    assert_eq!(send_keys.len(), 2, "{calls}");
     assert!(
-        new_session.contains(r#"set-option -p -t "$TMUX_PANE" remain-on-exit on; exec git status"#),
-        "{new_session}"
+        send_keys[0].contains("-l -- git status"),
+        "{}",
+        send_keys[0]
     );
+    assert!(send_keys[1].ends_with("Enter"), "{}", send_keys[1]);
 }
 
 #[test]
