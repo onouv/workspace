@@ -649,42 +649,42 @@ test do not exist yet, naming the `tasks.md` phase and task ids expected to clos
 | US1-AS4 | `tests/cli_help.rs::given_an_unknown_command_when_invoked_then_returns_helpful_stderr_error` |
 | US1-AS5 | `tests/cli_help.rs::given_missing_dependencies_when_requesting_config_help_then_prints_normative_reference` |
 | US2-AS1 | `tests/cli_help.rs::given_missing_dependencies_when_requesting_config_help_then_prints_normative_reference` |
-| US2-AS2 | Pending — Phase 7 (T040-T042): requires `ws up` to apply a valid `.ws` file against real tmux. |
-| US2-AS3 | Pending — Phase 8 (T048): requires proof that an invalid document creates no session. |
-| US2-AS4 | Pending — Phase 7 (T041): requires observing a custom command execute under tmux. |
-| US3-AS1 | Pending — Phase 5 (T026). |
-| US3-AS2 | Pending — Phase 5 (T028). |
-| US3-AS3 | Pending — Phase 5 (T027). |
-| US3-AS4 | Pending — Phase 5 (T029). |
-| US3-AS5 | Pending — Phase 5 (T029). |
-| US3-AS6 | Pending — Phase 5 (T029). |
-| US4-AS1 | Pending — Phase 6 (T035). |
-| US4-AS2 | Pending — Phase 6 (T035). |
-| US4-AS3 | Pending — Phase 6 (T036). |
-| US5-AS1 | Pending — Phase 7 (T040, T042). |
-| US5-AS2 | Pending — Phase 7 (T042). |
-| US5-AS3 | Pending — Phase 7 (T042). |
-| US5-AS4 | Pending — Phase 7 (T040). |
-| US5-AS5 | Pending — Phase 7 (T042). |
-| US5-AS6 | Pending — Phase 7 (T042). |
-| US5-AS7 | Pending — Phase 7 (T041). |
-| US6-AS1 | Pending — Phase 8 (T048). |
-| US6-AS2 | Pending — Phase 8 (T048-T049). |
-| US6-AS3 | Pending — Phase 8 (T050, T053). |
-| US6-AS4 | Pending — Phase 8 (T049). |
-| US7-AS1 | Pending — Phase 9 (T056). |
-| US7-AS2 | Pending — Phase 9 (T056). |
-| US7-AS3 | Pending — Phase 9 (T056). |
-| US7-AS4 | Pending — Phase 9 (T056). |
-| US7-AS5 | Pending — Phase 9 (T054-T056). |
-| US7-AS6 | Pending — Phase 9 (T056). |
-| US7-AS7 | Pending — Phase 9 (T054). |
-| US7-AS8 | Pending — Phase 9 (T055). |
-| US7-AS9 | Pending — Phase 9 (T055). |
+| US2-AS2 | `tests/tmux_integration.rs::given_the_canonical_document_when_up_is_invoked_then_every_window_and_pane_is_materialized_in_order` |
+| US2-AS3 | `tests/lifecycle.rs::given_an_invalid_ws_file_when_up_is_invoked_then_no_session_is_created` |
+| US2-AS4 | `tests/tmux_integration.rs::given_the_canonical_document_when_up_is_invoked_then_every_window_and_pane_is_materialized_in_order` |
+| US3-AS1 | `tests/lifecycle.rs::given_an_existing_session_when_up_is_invoked_outside_tmux_then_it_attaches_without_reading_the_config` |
+| US3-AS2 | `tests/lifecycle.rs::given_a_missing_session_when_up_is_invoked_inside_tmux_then_it_applies_the_config_and_opens_a_separate_terminal` |
+| US3-AS3 | `tests/lifecycle.rs::given_an_existing_session_when_up_is_invoked_inside_tmux_then_it_opens_a_separate_terminal_and_preserves_the_current_client` |
+| US3-AS4 | `tests/lifecycle.rs::given_an_existing_session_when_up_is_invoked_inside_tmux_then_it_opens_a_separate_terminal_and_preserves_the_current_client` |
+| US3-AS5 | `tests/lifecycle.rs::given_an_invalid_session_name_when_up_is_invoked_then_it_is_rejected_before_any_dependency_access` |
+| US3-AS6 | `tests/lifecycle.rs::given_the_target_session_race_is_lost_when_up_is_invoked_then_it_reconnects_instead_of_failing` |
+| US4-AS1 | `tests/lifecycle.rs::given_no_ws_file_when_up_is_invoked_then_it_creates_one_usable_default_window` |
+| US4-AS2 | `tests/lifecycle.rs::given_no_ws_file_when_up_is_invoked_then_it_creates_one_usable_default_window` |
+| US4-AS3 | `tests/lifecycle.rs::given_tmux_is_unavailable_when_up_is_invoked_then_it_reports_a_recoverable_dependency_error` |
+| US5-AS1 | `tests/tmux_integration.rs::given_the_canonical_document_when_up_is_invoked_then_every_window_and_pane_is_materialized_in_order` |
+| US5-AS2 | `tests/tmux_integration.rs::given_the_canonical_document_when_up_is_invoked_then_every_window_and_pane_is_materialized_in_order` |
+| US5-AS3 | `tests/tmux_integration.rs::given_the_canonical_document_when_up_is_invoked_then_every_window_and_pane_is_materialized_in_order` |
+| US5-AS4 | `tests/tmux_integration.rs::given_a_window_environment_when_up_is_invoked_then_it_is_inherited_by_its_pane` |
+| US5-AS5 | `tests/lifecycle.rs::given_a_missing_session_when_up_is_invoked_outside_tmux_then_it_creates_and_attaches_to_a_fresh_session` |
+| US5-AS6 | `tests/lifecycle.rs::given_a_missing_session_when_up_is_invoked_inside_tmux_then_it_applies_the_config_and_opens_a_separate_terminal` |
+| US5-AS7 | `tests/tmux_integration.rs::given_a_command_with_shell_syntax_when_up_is_invoked_then_it_is_passed_through_as_one_argument` |
+| US6-AS1 | `tests/lifecycle.rs::given_an_invalid_ws_file_when_up_is_invoked_then_no_session_is_created` |
+| US6-AS2 | `tests/lifecycle.rs::given_a_referenced_directory_does_not_exist_when_up_is_invoked_then_it_reports_the_declaration_and_creates_no_session` |
+| US6-AS3 | `tests/lifecycle.rs::given_a_secret_like_environment_value_when_a_launch_step_fails_then_it_never_reaches_ws_own_output` |
+| US6-AS4 | `tests/tmux_integration.rs::given_a_pane_split_fails_partway_through_when_up_is_invoked_then_only_the_new_session_is_rolled_back` |
+| US7-AS1 | `tests/lifecycle.rs::given_inside_tmux_when_exit_is_invoked_then_it_detaches_without_killing_the_session` |
+| US7-AS2 | `src/lifecycle/down.rs::tests::given_interactive_confirmation_accepted_when_down_runs_then_it_kills` |
+| US7-AS3 | `tests/lifecycle.rs::given_no_yes_and_no_tty_when_down_is_invoked_then_it_refuses` |
+| US7-AS4 | `tests/lifecycle.rs::given_yes_when_down_is_invoked_then_it_kills_the_named_session_without_prompting` |
+| US7-AS5 | `tests/lifecycle.rs::given_a_missing_target_when_down_is_invoked_then_it_reports_no_such_session` |
+| US7-AS6 | `src/lifecycle/down.rs::tests::given_no_name_inside_tmux_when_down_runs_interactively_then_it_targets_the_current_session` |
+| US7-AS7 | `tests/lifecycle.rs::given_an_existing_target_when_change_is_invoked_inside_tmux_then_it_switches_the_client` |
+| US7-AS8 | `tests/lifecycle.rs::given_a_missing_target_when_change_is_invoked_then_it_returns_a_recoverable_error` |
+| US7-AS9 | `tests/lifecycle.rs::given_outside_tmux_when_change_is_invoked_then_it_fails_without_contacting_tmux` |
 | US8-AS1 | Pending — out of MVP scope (spec's Security design decision); a future `clip` mapping specification. |
-| US8-AS2 | Pending — Phase 10 (T062). |
-| US8-AS3 | Pending — Phase 10 (T063). |
-| US8-AS4 | Pending — Phase 10 (T063). |
+| US8-AS2 | `tests/cli_help.rs::given_the_reserved_clip_command_when_invoked_then_it_reports_unsupported_without_a_password_store` |
+| US8-AS3 | `src/credentials/pass_provider.rs::tests::given_pass_is_locked_when_revealed_then_no_detail_is_included_in_the_error` |
+| US8-AS4 | `tests/cli_help.rs::given_the_reserved_clip_command_when_invoked_then_it_reports_unsupported_without_a_password_store` (the `clip` placeholder never calls the password-store provider; `PassProvider` itself is not yet wired into any command, so its own entry-scoping guarantee is covered by `src/credentials/pass_provider.rs::tests::given_a_requested_entry_when_revealed_then_only_that_entry_is_requested`, not a `ws up` integration test). |
 
 ## Assumptions
 

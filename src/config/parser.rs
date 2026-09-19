@@ -358,11 +358,20 @@ pub(crate) fn validation_error(path: &Path, context: &str, message: String) -> C
 }
 
 /// Load and fully validate a `.ws` file.
+///
+/// A missing file is treated the same as an empty one, since the specification documents both
+/// as the default single-window workspace rather than an error.
 pub fn load(source_path: &Path) -> Result<ValidatedWorkspaceDefinition, ConfigError> {
-    let source = fs::read_to_string(source_path).map_err(|source| ConfigError::Io {
-        path: source_path.to_path_buf(),
-        source,
-    })?;
+    let source = match fs::read_to_string(source_path) {
+        Ok(source) => source,
+        Err(source) if source.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(source) => {
+            return Err(ConfigError::Io {
+                path: source_path.to_path_buf(),
+                source,
+            });
+        }
+    };
     let definition = parse(&source, source_path)?;
     validator::validate(definition, source_path)
 }

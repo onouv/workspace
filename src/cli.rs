@@ -94,5 +94,11 @@ fn validate_session_name(value: &str) -> Result<String, String> {
         return Err("session name must not contain control characters".to_owned());
     }
 
+    // tmux reserves `:` and `.` to separate a session from a window or pane index in a target
+    // specifier, so a session name containing either could be misinterpreted by tmux itself.
+    if value.contains([':', '.']) {
+        return Err("session name must not contain ':' or '.'".to_owned());
+    }
+
     Ok(value.to_owned())
 }

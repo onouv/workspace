@@ -1,7 +1,3 @@
-#![allow(dead_code)] // Public error boundary is wired by the application layer in T009.
-
-use std::fmt;
-
 use thiserror::Error;
 
 /// Stable process exit categories exposed by the `ws` command.
@@ -9,6 +5,11 @@ use thiserror::Error;
 #[repr(i32)]
 pub enum ExitStatus {
     /// The command completed successfully.
+    ///
+    /// Never constructed directly: a successful run falls through `main` and exits 0 by the
+    /// platform's own default. This variant exists so the enum documents the complete,
+    /// published exit-status contract (see `specs/001-tmux-workspace/contracts/cli.md`).
+    #[allow(dead_code)]
     Success = 0,
     /// The command line could not be parsed or validated.
     InvalidInvocation = 2,
@@ -52,6 +53,9 @@ pub enum AppError {
     #[error("destructive operation refused: {message}")]
     DestructiveActionRefused { message: String },
 
+    // Reserved for the credential-provider integration deferred by User Story 8; see
+    // `src/credentials/pass_provider.rs`, which is not yet wired into any command.
+    #[allow(dead_code)]
     #[error("credential operation failed: {message}")]
     CredentialFailure { message: String },
 }
@@ -68,23 +72,6 @@ impl AppError {
             Self::CredentialFailure { .. } => ExitStatus::CredentialFailure,
         }
     }
-}
-
-/// A display-only marker that prevents a secret value from being rendered accidentally.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct Redacted;
-
-impl fmt::Display for Redacted {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("<redacted>")
-    }
-}
-
-/// Discard a sensitive value and return a safe display marker.
-///
-/// The value is deliberately not retained by the returned marker.
-pub fn redact<T>(_: T) -> Redacted {
-    Redacted
 }
 
 /// Render an application error for stderr without exposing an underlying secret.

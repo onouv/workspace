@@ -107,8 +107,9 @@ $defs:
   location when available.
 - YAML comments, quoted and plain scalar styles, sequences, and mappings are supported. Custom YAML
   tags and multi-document streams are rejected.
-- An empty `.ws` file uses the default single-window workspace. A non-empty file must follow this
-  schema.
+- A missing or empty `.ws` file uses the default single-window workspace: one window named
+  `root`, rooted at the project directory, running the user's normal interactive shell. A
+  non-empty file must follow this schema.
 
 ## Canonical example
 

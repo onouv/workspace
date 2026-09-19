@@ -1,8 +1,7 @@
-#![allow(dead_code)] // Terminal capabilities are consumed by lifecycle tasks after this boundary.
-
 use std::env;
 use std::io::{self, IsTerminal};
 
+pub mod confirm;
 pub mod launcher;
 
 /// Terminal capabilities relevant to prompting and workspace attachment.
@@ -28,17 +27,8 @@ impl TerminalContext {
         self.inside_tmux
     }
 
-    /// Return whether interactive input is available.
-    pub const fn stdin_is_tty(self) -> bool {
-        self.stdin_is_tty
-    }
-
-    /// Return whether interactive output is available.
-    pub const fn stdout_is_tty(self) -> bool {
-        self.stdout_is_tty
-    }
-
-    /// Return whether prompting is safe for this process.
+    /// Return whether prompting is safe for this process: both stdin and stdout must be a real
+    /// terminal, since a redirected/piped stream cannot support an interactive prompt.
     pub const fn is_interactive(self) -> bool {
         self.stdin_is_tty && self.stdout_is_tty
     }
@@ -47,5 +37,26 @@ impl TerminalContext {
 impl Default for TerminalContext {
     fn default() -> Self {
         Self::detect()
+    }
+}
+
+#[cfg(test)]
+impl TerminalContext {
+    /// A context outside tmux with an interactive terminal on both streams.
+    pub(crate) const fn outside_tmux_for_test() -> Self {
+        Self {
+            inside_tmux: false,
+            stdin_is_tty: true,
+            stdout_is_tty: true,
+        }
+    }
+
+    /// A context inside a tmux client with an interactive terminal on both streams.
+    pub(crate) const fn inside_tmux_for_test() -> Self {
+        Self {
+            inside_tmux: true,
+            stdin_is_tty: true,
+            stdout_is_tty: true,
+        }
     }
 }
