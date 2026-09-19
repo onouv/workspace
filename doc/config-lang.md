@@ -102,6 +102,12 @@ $defs:
 - `command` is a shell command string and may invoke an executable, custom Bash script, pipeline, or
   other shell operation. For example, `command: bash ./scripts/setup.sh` runs the script from the
   declaration's resolved working directory with the declared environment.
+- A window or pane with a configured `command` stays open after that command exits, including a
+  command that exits immediately (for example `git status`). Its tmux pane shows the command's
+  final output and a dead-pane notice instead of disappearing, so a short-lived command's result
+  remains visible and one pane's early exit never destroys panes chained off it. A pane with no
+  `command` runs the user's normal interactive shell and closes as tmux normally would when that
+  shell exits.
 - Unknown properties, wrong YAML types, duplicate mapping keys, missing required values, invalid
   positions, invalid environment names, and invalid version values are rejected with a source
   location when available.

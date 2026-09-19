@@ -83,7 +83,7 @@ fn create(
     args.push("#{pane_id}".into());
     if let Some(command) = command {
         args.push("--".into());
-        args.push(command.into());
+        args.push(pane::persistent_command(command).into());
     }
     let output = tmux.execute(args)?;
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
@@ -222,12 +222,20 @@ mod tests {
         // `services` never gets its own tmux pane.
         assert_eq!(calls.len(), 3, "{calls:#?}");
         assert_eq!(calls[0][0], "new-session");
-        assert!(calls[0].contains(&"git status".to_owned()));
+        assert!(calls[0].iter().any(|arg| arg.ends_with("exec git status")));
         assert_eq!(calls[1][0], "split-window");
         assert!(calls[1].contains(&"-h".to_owned()) && !calls[1].contains(&"-b".to_owned()));
-        assert!(calls[1].contains(&"bash ./scripts/observe.sh".to_owned()));
+        assert!(
+            calls[1]
+                .iter()
+                .any(|arg| arg.ends_with("exec bash ./scripts/observe.sh"))
+        );
         assert_eq!(calls[2][0], "split-window");
         assert!(calls[2].contains(&"-v".to_owned()));
-        assert!(!calls[2].contains(&"bash ./scripts/observe.sh".to_owned()));
+        assert!(
+            !calls[2]
+                .iter()
+                .any(|arg| arg.ends_with("exec bash ./scripts/observe.sh"))
+        );
     }
 }
