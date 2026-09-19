@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  quality-gates:
+    name: Quality gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Install the stable Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry and build artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Check the build
+        run: cargo check --all-targets --all-features
+
+      - name: Lint with Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Run tests
+        run: cargo test --all-targets --all-features
+
+      - name: Build API documentation
+        run: cargo doc --no-deps --all-features
+
+      - name: Verify no secret-bearing path is tracked
+        run: |
+          if grep -qE '^!\.secrets(/|$)' .gitignore; then
+            echo "::error::.gitignore contains a negation rule that re-includes .secrets/"
+            exit 1
+          fi
+          if ! grep -qE '^\.secrets/?$' .gitignore; then
+            echo "::error::.gitignore does not exclude .secrets/"
+            exit 1
+          fi
+          if git ls-files | grep -E '(^|/)\.secrets(/|$)'; then
+            echo "::error::a .secrets path is tracked in the repository"
+            exit 1
+          fi
+          echo "No secret-bearing path is tracked."

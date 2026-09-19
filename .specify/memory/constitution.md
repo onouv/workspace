@@ -1,10 +1,29 @@
 <!--
 Sync Impact Report
-- Version change: 1.3.0 -> 1.4.0
-- Modified principles: none.
-- Added sections: Development Workflow and Quality Gate
+- Version change: 1.4.0 -> 1.5.0
+- Modified principles:
+  - III. Explicit Errors and Safe Failure — added a rule against leaking internal module
+    paths, Rust type names, or other implementation detail into user-facing messages.
+  - IV. Behavior Is Defined by Tests — added stable `US<story>-AS<n>` acceptance-scenario
+    ids, a `// Scenario: US<story>-AS<n>` test marker requirement, one-scenario-one-test
+    ownership, and a formal `given_<context>_when_<action>_then_<outcome>` test-naming rule
+    (nested `mod given_<context>` blocks permitted, not required).
+  - VII. Idiomatic Rust, Readability, and Maintainability — added non-binding size guidance
+    for functions and files alongside the existing "readable size" requirement.
+- Added principles:
+  - IX. Bounded Execution and Immutable Validated State — explicit iteration caps for
+    runtime-conditioned loops, a documented maximum recursion depth for externally supplied
+    nested structure (the `.ws` pane hierarchy), immutable validated configuration/launch-plan
+    types with invariants enforced at construction, and a builder-pattern requirement for
+    constructors with more than two arguments or repeated argument types.
+- Added sections: none (new content placed within existing principles and one new principle).
 - Removed sections: none.
-- Follow-up TODOs: none.
+- Follow-up TODOs:
+  - Retrofit `specs/001-tmux-workspace/spec.md` acceptance scenarios with `US<story>-AS<n>`
+    ids and add matching `// Scenario:` markers to the existing tests in `tests/cli_help.rs`
+    and `tests/config_language.rs`.
+  - Confirm and document the maximum pane-nesting depth in `src/config/validator.rs` and
+    `doc/config-lang.md`.
 -->
 
 # Interactive CLI Constitution
@@ -38,7 +57,10 @@ reporting and for mapping failures to documented exit codes. User input, filesys
 configuration, and external-process failures MUST identify the relevant operation and
 suggest a corrective action where practical. Secrets, tokens, and private input MUST NOT
 be emitted in errors, logs, traces, or shell commands. Destructive operations MUST require
-an explicit confirmation or an equivalent non-interactive opt-in flag.
+an explicit confirmation or an equivalent non-interactive opt-in flag. User-facing error
+messages MUST NOT expose internal module paths, Rust type names, or other implementation
+detail that does not help correct the problem; such detail belongs in a debug
+representation or an opt-in verbose mode, not the default message.
 
 ### IV. Behavior Is Defined by Tests
 Every new command, option, prompt flow, output contract, and error-path change MUST include
@@ -50,6 +72,16 @@ network access, wall-clock assumptions, and shared mutable state unless the depe
 explicitly isolated. Snapshot testing with `insta` MAY be used for deliberately stable,
 substantial output, but snapshots MUST be reviewed as part of the change.
 Tests MUST be built according to behavior driven testing, i.e. the MUST have clauses "Given ...", "When ...", "Then ...", in that order. This structure MUST show up in the implementtaion as well as the outputs.
+Test names MUST follow the pattern `given_<context>_when_<action>_then_<outcome>` (appending
+`_and_<clause>` for an additional clause), and each test MUST assert a single outcome; tests
+MAY additionally group shared context under nested `mod given_<context>` blocks when that
+improves readability. Every acceptance scenario in a feature specification MUST carry a
+stable identifier of the form `US<story>-AS<n>`. The test verifying that scenario's
+observable behavior MUST reference it with a `// Scenario: US<story>-AS<n>` comment as the
+first line of the test body; no such marker MUST exist without a matching specification id.
+Each scenario MUST be owned by exactly one test — do not duplicate the same scenario id
+across multiple tests. A feature's `tasks.md` or `spec.md` SHOULD maintain a traceability
+note mapping each scenario id to its owning test.
 
 ### V. Portable, Accessible Terminal Behavior
 The tool MUST work correctly on supported Unix and Windows terminals and in a non-TTY
@@ -96,6 +128,9 @@ validation, application logic, and external effects without relying on implicit 
 Complexity, non-idiomatic patterns, and deviations from standard Rust style MUST have a clear
 benefit documented in the change description and focused tests where behavior is affected.
 Modules MUST be of a readable size. Each module is a separate file. Each non-trivial type (struct) MUST be in its own file.
+As non-binding guidance, a function SHOULD stay under roughly 40-60 lines and a module file
+SHOULD stay under roughly 200 lines; exceeding either is acceptable when splitting further
+would harm cohesion or readability, but MUST then be a deliberate choice, not an accident.
 
 ### VIII. Secret Material Isolation and Repository Hygiene
 Secrets of any kind MUST NOT be committed to the repository, Git index, Git history,
@@ -127,6 +162,27 @@ MUST verify that no secret-bearing path is tracked and SHOULD run an appropriate
 scanner. If a secret is suspected to have entered Git history, it MUST be revoked or rotated
 and removed from history through the project’s approved incident procedure; deleting the
 working-tree file alone is insufficient.
+
+### IX. Bounded Execution and Immutable Validated State
+Every loop whose continuation depends on a runtime condition — a retry loop, a polling loop,
+or race-recovery handling such as concurrent session-creation contention — MUST carry an
+explicit iteration cap or deadline and MUST define its behavior when that limit is reached;
+silent truncation is not acceptable. Iterating a finite in-memory collection satisfies this
+requirement inherently and needs no added cap. An intentionally long-running top-level loop
+(such as a run/serve loop) is the deliberate exception: it MUST be named to make that intent
+obvious and MUST NOT hold an external resource or lock across iterations.
+
+Recursion MUST remain the exception rather than the default. Recursive traversal of
+externally supplied structure — including the recursive `.ws` pane hierarchy — MUST enforce
+an explicit, documented maximum depth and MUST reject deeper input with a clear validation
+error rather than risking unbounded stack growth.
+
+Validated configuration and launch-plan types (such as `WorkspaceDefinition`,
+`WindowDefinition`, `PaneDefinition`, and any tmux launch plan) MUST be immutable once
+constructed and MUST validate their invariants at construction, so that any instance in
+scope is known-valid for its lifetime. A constructor requiring more than two arguments, or
+any two arguments of the same type, MUST use a builder rather than a positional constructor
+to avoid argument-order mistakes.
 
 ## Technology and Runtime Constraints
 
@@ -193,4 +249,4 @@ wording without changing governance intent. Maintainers MUST review compliance d
 review and may reject changes that lack the required validation evidence. When this document
 conflicts with a lower-level guide, the constitution takes precedence until formally amended.
 
-**Version**: 1.4.0 | **Ratified**: 2026-08-23 | **Last Amended**: 2026-08-23
+**Version**: 1.5.0 | **Ratified**: 2026-08-23 | **Last Amended**: 2026-09-13

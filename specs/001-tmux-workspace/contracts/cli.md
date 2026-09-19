@@ -65,15 +65,26 @@ demand and must never print it.
 
 ## Exit-status categories
 
-The implementation MUST document stable numeric values for these categories before implementation:
+Stable numeric values, defined in `src/error.rs`:
 
-- invalid invocation or session name
-- invalid `.ws` YAML/schema/semantic content
-- missing or unusable tmux
-- terminal-launcher failure
-- workspace operation failure
-- refused destructive operation
-- unavailable or unauthorized credential provider
+| Status | Code | Category |
+|---|---|---|
+| `Success` | 0 | The command completed successfully. |
+| `InvalidInvocation` | 2 | Invalid CLI input, including an invalid session name. |
+| `InvalidConfiguration` | 3 | Invalid `.ws` YAML/schema/semantic content. |
+| `DependencyUnavailable` | 4 | Missing or unusable tmux, or no separate terminal launcher configured/reachable. |
+| `OperationFailed` | 5 | A workspace operation (tmux command) failed. |
+| `DestructiveActionRefused` | 6 | A destructive operation was refused. |
+| `CredentialFailure` | 7 | An unavailable or unauthorized credential provider. |
+
+## Separate terminal launcher
+
+`ws up` opens a target session through a separate terminal client/window when invoked inside
+tmux, configured via the `WS_TERMINAL_LAUNCHER` environment variable: a program followed by
+space-separated arguments (for example, `x-terminal-emulator -e tmux attach-session -t`). `ws`
+appends the target session name as the final argument and never shell-interprets the configured
+value. When the variable is unset, opening a separate terminal reports the recoverable
+`DependencyUnavailable` status instead of nesting a tmux client or switching the current client.
 
 ## Output rules
 
@@ -81,3 +92,16 @@ The implementation MUST document stable numeric values for these categories befo
 - Normal results use stdout.
 - Diagnostics, progress, and logs use stderr.
 - Secrets never use either stream.
+
+## Supported tmux versions
+
+`ws` requires a tmux new enough to support `-e KEY=VALUE` and `-P -F` on `new-session`,
+`new-window`, and `split-window` (tmux 3.0 or later); verified against tmux 3.2a. No version
+check is performed at runtime — an incompatible tmux surfaces as an ordinary `OperationFailed`
+tmux command failure.
+
+## TTY behavior
+
+Interactive prompts (`ws down` confirmation) require both stdin and stdout to be a real terminal;
+a redirected or piped stream on either is treated as non-interactive. Non-interactive `ws down`
+without `--yes` refuses rather than hanging. All other commands are unaffected by TTY state.
