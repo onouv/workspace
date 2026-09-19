@@ -19,3 +19,12 @@ pub fn general() -> String {
 pub fn config() -> &'static str {
     include_str!("../doc/config-lang.md")
 }
+
+/// Return the normative `ws clip` credential-mapping YAML language reference compiled into the
+/// executable.
+///
+/// Embedding the reference keeps `ws help clip` available without reading the user- or
+/// project-level mapping file, contacting `pass`, or contacting the clipboard provider.
+pub fn clip() -> &'static str {
+    include_str!("../doc/clip-config-lang.md")
+}

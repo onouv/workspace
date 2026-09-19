@@ -15,6 +15,8 @@ use clap::Parser;
 
 use crate::app::{App, AppDependencies};
 use crate::cli::Cli;
+use crate::credentials::clipboard::ConfiguredClipboardProvider;
+use crate::credentials::pass_provider::PassProvider;
 use crate::error::render_error;
 use crate::terminal::TerminalContext;
 use crate::terminal::confirm::TerminalConfirm;
@@ -28,6 +30,8 @@ fn main() {
         terminal_launcher: Box::new(ConfiguredTerminalLauncher::from_env()),
         terminal: TerminalContext::detect(),
         confirm: Box::new(TerminalConfirm),
+        pass_provider: PassProvider::default(),
+        clipboard_provider: Box::new(ConfiguredClipboardProvider::from_env()),
     });
 
     match app.execute(cli) {
