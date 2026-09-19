@@ -6,7 +6,7 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
     name = "ws",
     version,
     about = "Start and manage configured tmux workspaces",
-    after_help = "Examples:\n  ws up SESSION_NAME\n  ws change SESSION_NAME\n  ws help config",
+    after_help = "Examples:\n  ws up SESSION_NAME\n  ws change SESSION_NAME\n  ws help config\n  ws help clip",
     disable_help_subcommand = true,
     subcommand_required = false,
     arg_required_else_help = false
@@ -29,7 +29,7 @@ pub enum Command {
     Down(DownArgs),
     /// Detach the current tmux client without terminating its session.
     Exit,
-    /// Run a credential-backed utility command.
+    /// Send one configured credential to the clipboard.
     Clip(ClipArgs),
 }
 
@@ -46,6 +46,8 @@ pub struct HelpArgs {
 pub enum HelpTopic {
     /// The `.ws` YAML schema and configuration reference.
     Config,
+    /// The `ws clip` credential-mapping schema, file locations, and configuration reference.
+    Clip,
 }
 
 /// Arguments for workspace creation or reconnection.
@@ -76,7 +78,7 @@ pub struct DownArgs {
     pub yes: bool,
 }
 
-/// Arguments for a future credential-backed utility.
+/// Arguments for `ws clip NAMESPACE ITEM`.
 #[derive(Debug, Args)]
 pub struct ClipArgs {
     /// Logical credential namespace.

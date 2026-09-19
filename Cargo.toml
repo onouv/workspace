@@ -29,3 +29,15 @@ name = "fake-launcher"
 path = "tests/fixtures/fake_launcher.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "fake-pass"
+path = "tests/fixtures/fake_pass.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fake-clipboard"
+path = "tests/fixtures/fake_clipboard.rs"
+test = false
+doc = false

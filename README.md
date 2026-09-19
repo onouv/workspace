@@ -76,7 +76,9 @@ windows:
 | `ws change SESSION_NAME` | Switch the current tmux client to an existing session, leaving the previous one running. Requires being inside tmux already; never reads `.ws`. |
 | `ws down SESSION_NAME --yes` | Kill a named session non-interactively. Without `--yes`, asks for interactive confirmation; refuses outright without a TTY. |
 | `ws exit` | Detach the current tmux client without killing its session. |
+| `ws clip NAMESPACE ITEM` | Send one configured credential to the clipboard (see [Credentials](#credentials)). |
 | `ws help config` | Print the full `.ws` language reference. |
+| `ws help clip` | Print the full `ws clip` credential-mapping reference. |
 | `ws --version` | Print the version. |
 
 `ws`, `ws help`, `ws --help`, `ws help config`, and `ws --version` never touch tmux or a
@@ -99,11 +101,45 @@ situation instead of guessing.
 
 ## Credentials
 
-`ws` does not read, cache, or export credentials during `up`, `change`, `down`, or `exit`. A
-future `ws clip NAMESPACE ITEM` utility is reserved for on-demand, single-entry access through
-your existing `pass`/GPG-agent setup, but is not implemented in this MVP — see
-[`specs/001-tmux-workspace/spec.md`](specs/001-tmux-workspace/spec.md) for the security design
-decision behind that boundary.
+`ws` does not read, cache, or export credentials during `up`, `change`, `down`, or `exit`.
+`ws clip NAMESPACE ITEM` is the on-demand, single-entry exception: it resolves exactly one
+configured credential through your existing `pass`/GPG-agent setup and sends it straight to the
+clipboard, never printing it — see
+[`specs/001-tmux-workspace/spec.md`](specs/001-tmux-workspace/spec.md) for the full security
+design decision.
+
+`NAMESPACE ITEM` (for example `git ssh` or `docker token`) is looked up in a mapping merged from
+two optional YAML files — run `ws help clip` for the complete schema, this is a summary:
+
+- **User-level** (available to every project): `$XDG_CONFIG_HOME/ws/clip.yaml`, or
+  `$HOME/.config/ws/clip.yaml` when `XDG_CONFIG_HOME` is unset.
+- **Project-level** (specific to one project, alongside `.ws`): `.ws-clip` in the project
+  directory. A project-level entry overrides a user-level entry for the same `NAMESPACE ITEM`.
+
+Either file may be absent — a missing file is treated as an empty mapping, not an error. Each
+entry sets exactly one of `pass` (a `pass` store path, resolved on demand) or `literal` (a fixed,
+non-secret value such as a username, copied without contacting `pass`). Neither file may contain a
+live credential value, so both are safe to keep in ordinary dotfiles:
+
+```yaml
+# ~/.config/ws/clip.yaml
+version: 1
+entries:
+  git:
+    ssh: {pass: repos/github/ssh/my-key}
+    cli: {pass: repos/github/token}
+    user: {literal: my-username}
+    password: {pass: repos/github/my-account}
+  docker:
+    token: {pass: registries/dockerhub/tokens/build}
+    user: {literal: my-username}
+    password: {pass: registries/dockerhub/my-account}
+```
+
+`ws clip` sends the resolved value to an external clipboard provider, configured through
+`WS_CLIPBOARD_PROVIDER` using the same "program followed by space-separated arguments" convention
+as `WS_TERMINAL_LAUNCHER` (for example `wl-copy` on Wayland, or `pbcopy` on macOS). When unset,
+`ws` uses `xclip -selection clipboard`.
 
 ## Development
 

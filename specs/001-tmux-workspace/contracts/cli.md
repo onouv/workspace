@@ -7,6 +7,7 @@ ws
 ws help
 ws --help
 ws help config
+ws help clip
 ws --version
 ```
 
@@ -53,15 +54,26 @@ ws exit
 
 Detaches the current tmux client without killing its session. It fails clearly outside tmux.
 
-## Reserved utility namespace
+## `ws clip NAMESPACE ITEM`
 
-```text
-ws clip NAMESPACE ITEM
-```
+Sends one configured credential to the clipboard, resolved on demand — nothing is read from the
+password store or written to the clipboard until this command runs, and the resolved value is
+never printed.
 
-The namespace is reserved for future credential-dependent utilities. Detailed entry mappings and
-clipboard-provider behavior are specified separately. Such commands must request one entry on
-demand and must never print it.
+- `NAMESPACE ITEM` is looked up in a merged mapping built from two optional YAML files:
+  - **User-level**: `$XDG_CONFIG_HOME/ws/clip.yaml`, falling back to `$HOME/.config/ws/clip.yaml`.
+  - **Project-level**: `.ws-clip` in the project directory, alongside `.ws`.
+  - A missing file on either side is an empty mapping, not an error. When both define the same
+    pair, the project-level entry wins.
+- Each entry is exactly one of a `pass` store path (resolved via `pass show <path>` at the moment
+  `ws clip` runs) or a fixed, non-secret `literal` value (copied without contacting `pass`).
+- A `NAMESPACE ITEM` pair absent from the merged mapping is rejected before contacting `pass` or
+  the clipboard provider.
+- `ws help clip` prints the full mapping schema, both file locations, the merge rule, and a
+  complete example; see also `doc/clip-config-lang.md`.
+
+See "Clip Credential Mapping Language (Normative Reference)" and User Story 9 in `spec.md` for the
+full normative schema.
 
 ## Exit-status categories
 
@@ -85,6 +97,16 @@ space-separated arguments (for example, `x-terminal-emulator -e tmux attach-sess
 appends the target session name as the final argument and never shell-interprets the configured
 value. When the variable is unset, opening a separate terminal reports the recoverable
 `DependencyUnavailable` status instead of nesting a tmux client or switching the current client.
+
+## Clipboard provider
+
+`ws clip` sends the resolved value to an external clipboard provider, configured through the
+`WS_CLIPBOARD_PROVIDER` environment variable using the same program-plus-arguments convention as
+`WS_TERMINAL_LAUNCHER`. When unset, `ws` uses `xclip -selection clipboard`. `ws` never
+shell-interprets the configured value, writes the resolved value only to the provider's standard
+input, and never reads or forwards the provider's own stdout or stderr. A provider that cannot be
+started reports `DependencyUnavailable`; a provider that runs but exits non-zero (refusing the
+value) reports `OperationFailed`. Neither case falls back to printing the value.
 
 ## Output rules
 

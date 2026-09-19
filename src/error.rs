@@ -53,9 +53,8 @@ pub enum AppError {
     #[error("destructive operation refused: {message}")]
     DestructiveActionRefused { message: String },
 
-    // Reserved for the credential-provider integration deferred by User Story 8; see
-    // `src/credentials/pass_provider.rs`, which is not yet wired into any command.
-    #[allow(dead_code)]
+    // The password store is locked, missing, or otherwise could not provide a requested entry;
+    // see `src/lifecycle/clip.rs`.
     #[error("credential operation failed: {message}")]
     CredentialFailure { message: String },
 }

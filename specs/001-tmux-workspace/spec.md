@@ -184,6 +184,111 @@ windows:
 The reference schema and example MUST remain synchronized across this specification, `ws help config`,
 parser tests, and user documentation.
 
+## Clip Credential Mapping Language (Normative Reference)
+
+User Story 8's security design decision deferred the detailed `ws clip NAMESPACE ITEM` entry
+mapping to a separate specification. This section is that specification: it defines the mapping
+configuration format, its file locations, and its merge rule. It MUST be published through
+`ws help clip`, mirroring how the `.ws` reference is published through `ws help config`.
+
+Two optional UTF-8 YAML 1.2 documents supply the mapping, both using the schema below:
+
+- **User-level file**: `$XDG_CONFIG_HOME/ws/clip.yaml`, or `$HOME/.config/ws/clip.yaml` when
+  `XDG_CONFIG_HOME` is unset or empty. Holds entries available to every project, such as personal
+  Git and container-registry credentials.
+- **Project-level file**: `.ws-clip` in the project directory, alongside `.ws`. Holds entries
+  specific to one project, such as a project-scoped registry token.
+
+Neither file is itself secret: an entry names *where* a credential lives (a `pass` store path) or
+supplies a fixed non-secret value (such as a username); it MUST NOT contain a live credential
+value. Both files remain outside `.secrets/` and are safe to keep in ordinary dotfiles, consistent
+with the constitution's secret-isolation principle.
+
+```yaml
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:ws:clip-mapping-schema:v1
+title: ws clip credential mapping
+type: object
+required: [version, entries]
+additionalProperties: false
+properties:
+  version:
+    const: 1
+  entries:
+    type: object
+    propertyNames:
+      minLength: 1
+    additionalProperties:
+      type: object
+      propertyNames:
+        minLength: 1
+      additionalProperties:
+        $ref: '#/$defs/entry'
+$defs:
+  entry:
+    type: object
+    additionalProperties: false
+    oneOf:
+      - required: [pass]
+        properties:
+          pass:
+            type: string
+            minLength: 1
+      - required: [literal]
+        properties:
+          literal:
+            type: string
+            minLength: 1
+```
+
+The schema and these semantic rules are normative:
+
+- `version` MUST be `1`.
+- `entries` is a mapping from namespace to a mapping from item to one entry. `NAMESPACE` and `ITEM`
+  in `ws clip NAMESPACE ITEM` select `entries.NAMESPACE.ITEM`.
+- Each entry MUST set exactly one of `pass` or `literal`, never both, never neither.
+  - `pass` names one `pass` store entry, resolved on demand through `PassProvider::reveal` at the
+    moment `ws clip` runs (FR-025 through FR-028 govern this access).
+  - `literal` is a fixed, non-secret value (for example, a username) copied to the clipboard
+    without contacting `pass`.
+- A missing user-level or project-level file is treated as an empty mapping, the same way a
+  missing `.ws` is treated as the documented default — not an error.
+- The two files are merged before lookup: the project-level file's entries take precedence over
+  the user-level file's entries for the same `(NAMESPACE, ITEM)` pair; entries that appear in only
+  one file are kept as-is. Neither file may reference the other.
+- Unknown top-level or entry properties, a wrong YAML type, an entry missing both `pass` and
+  `literal` or setting both, and an unsupported `version` MUST be rejected with a source location
+  when available.
+- A `ws clip NAMESPACE ITEM` invocation naming a pair absent from the merged mapping MUST be
+  rejected with an actionable error pointing at `ws help clip`, and MUST NOT contact `pass` or the
+  clipboard provider.
+
+A canonical valid user-level document is:
+
+```yaml
+version: 1
+entries:
+  git:
+    ssh: {pass: repos/github/ssh/my-key}
+    cli: {pass: repos/github/token}
+    user: {literal: my-username}
+    password: {pass: repos/github/my-account}
+  docker:
+    token: {pass: registries/dockerhub/tokens/build}
+    user: {literal: my-username}
+    password: {pass: registries/dockerhub/my-account}
+```
+
+### Clipboard provider selection
+
+`ws clip` sends the resolved value to an external clipboard provider command, configured through
+the `WS_CLIPBOARD_PROVIDER` environment variable using the same "program followed by
+space-separated arguments" convention as `WS_TERMINAL_LAUNCHER`. When unset, `ws` uses
+`xclip -selection clipboard`. `ws` never shell-interprets the configured value, writes the
+resolved credential only to the provider's standard input, and never reads or forwards the
+provider's own stdout or stderr — an unavailable or refusing provider MUST surface as a
+recoverable error without falling back to printing the value.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Discover the command interface safely (Priority: P1)
@@ -448,6 +553,55 @@ command-specific authorization remain separate specifications.
 
 ---
 
+### User Story 9 - Configure the `ws clip` credential mapping (Priority: P3)
+
+As a developer, I want to declare my Git and container-registry credentials once in a personal
+config file and add project-specific entries only where a project needs them, so that
+`ws clip git ssh` and similar commands work the same way the legacy tool's hard-coded mapping did,
+without hard-coding my personal `pass` layout into the `ws` binary.
+
+**Why this priority**: This closes the mapping gap User Story 8 deliberately deferred. It depends on
+User Story 8's command namespace and security boundary, so it inherits that story's priority.
+
+**Independent Test**: With a controlled `HOME`/`XDG_CONFIG_HOME`, a controlled project directory, a
+fake `pass`, and a fake clipboard provider, populate a user-level file, a project-level file, and
+run `ws clip NAMESPACE ITEM` for `pass`-backed entries, `literal` entries, project-overridden
+entries, and unconfigured entries; verify the fake `pass` is invoked only for the requested `pass`
+entry, the fake clipboard provider receives exactly the expected value, and no other value or file
+content reaches stdout, stderr, or the clipboard.
+
+**Acceptance Scenarios**:
+
+1. **US9-AS1**. **Given** the user-level file defines `git ssh` as a `pass` entry, **When** the user invokes
+   `ws clip git ssh`, **Then** `ws` requests that one `pass` entry and sends its value to the
+   configured clipboard provider without printing it.
+2. **US9-AS2**. **Given** the user-level file defines `git user` as a `literal` value, **When** the user invokes
+   `ws clip git user`, **Then** `ws` sends that value to the clipboard provider without contacting
+   `pass`.
+3. **US9-AS3**. **Given** both the user-level and project-level files define an entry for the same
+   `NAMESPACE ITEM`, **When** the user invokes `ws clip NAMESPACE ITEM` from that project, **Then**
+   the project-level entry is used.
+4. **US9-AS4**. **Given** neither file defines the requested `NAMESPACE ITEM`, **When** the user invokes
+   `ws clip NAMESPACE ITEM`, **Then** `ws` reports that the entry is not configured, points at
+   `ws help clip`, and does not contact `pass` or the clipboard provider.
+5. **US9-AS5**. **Given** a mapping file is malformed, has an unsupported `version`, or an entry sets both
+   or neither of `pass`/`literal`, **When** `ws clip` loads it, **Then** `ws` reports the problem
+   with the file path and a location when available, and does not contact `pass` or the clipboard
+   provider.
+6. **US9-AS6**. **Given** neither the user-level nor the project-level file exists, **When** the user invokes
+   any `ws clip NAMESPACE ITEM`, **Then** `ws` treats the mapping as empty and reports the entry as
+   not configured, the same as US9-AS4, rather than failing on the missing files.
+7. **US9-AS7**. **Given** `WS_CLIPBOARD_PROVIDER` is unset, **When** a `ws clip` entry resolves successfully,
+   **Then** `ws` sends the value to `xclip -selection clipboard`.
+8. **US9-AS8**. **Given** `WS_CLIPBOARD_PROVIDER` is set, **When** a `ws clip` entry resolves successfully,
+   **Then** `ws` uses the configured program and arguments instead of the default, appending
+   nothing beyond the resolved value on its standard input.
+9. **US9-AS9**. **Given** the user wants to learn the mapping file format, **When** the user invokes
+   `ws help clip`, **Then** `ws` prints the normative mapping schema, both file locations, the merge
+   rule, and a complete example without contacting tmux, `pass`, or the clipboard provider.
+
+---
+
 ### Edge Cases
 
 - A help or version request is made while tmux is missing, `pass` is locked, or GPG is unavailable:
@@ -481,6 +635,14 @@ command-specific authorization remain separate specifications.
   persisted outside the child process that needs it.
 - The clipboard provider is unavailable, supports a different terminal environment, or exits before
   accepting the selected value; the secret must not fall back to stdout or an error message.
+- Both the user-level and project-level clip mapping files are absent, empty, or one is present and
+  the other absent; each case resolves without error, per US9-AS6.
+- A mapping file exists but is unreadable (permissions) rather than missing: `ws clip` reports it
+  the same way an unreadable `.ws` file would, without exposing filesystem detail beyond the path.
+- `HOME` is unset and `XDG_CONFIG_HOME` is unset: the user-level file is treated as absent rather
+  than causing a panic or an unrelated path.
+- A project directory contains `.ws-clip` but no `.ws`: the project-level clip mapping still loads
+  independently of workspace-layout configuration.
 
 ## Requirements *(mandatory)*
 
@@ -553,9 +715,8 @@ command-specific authorization remain separate specifications.
   selected value directly to its approved destination without emitting it on stdout or stderr.
 - **FR-028**: The system MUST keep master passwords and password-store entries out of stdout, stderr,
   logs, shell commands, tmux command strings, persisted configuration, and unrelated environments.
-- **FR-029**: The system MUST provide discoverable help for `up`, `change`, `down`, `exit`, and the
-  reserved `clip` namespace; detailed future utility behavior MAY be delivered in separate
-  specifications.
+- **FR-029**: The system MUST provide discoverable help for `up`, `change`, `down`, `exit`, and
+  `clip`, including `ws help clip` as the side-effect-free clip credential-mapping reference.
 - **FR-030**: The system MUST keep normal results on stdout and diagnostics, progress, and logging on
   stderr; secret values MUST be emitted to neither stream.
 - **FR-031**: The system MUST return stable, documented non-zero statuses for invalid CLI input,
@@ -580,6 +741,27 @@ command-specific authorization remain separate specifications.
 - **FR-038**: The help output MUST explain that a terminal window/client is separate from a tmux
   window, and MUST document the behavior and recoverable failure mode when `ws up` cannot launch a
   separate terminal client from inside tmux.
+- **FR-039**: `ws clip NAMESPACE ITEM` MUST resolve its credential source from a merged mapping built
+  from an optional user-level file (`$XDG_CONFIG_HOME/ws/clip.yaml`, falling back to
+  `$HOME/.config/ws/clip.yaml`) and an optional project-level file (`.ws-clip` in the project
+  directory), with project-level entries overriding user-level entries for the same pair. A missing
+  file on either side MUST be treated as an empty mapping, not an error.
+- **FR-040**: Each mapping entry MUST resolve to exactly one of a `pass` store path or a fixed
+  non-secret `literal` value; the mapping file MUST NOT itself contain a live credential value.
+- **FR-041**: A `NAMESPACE ITEM` pair absent from the merged mapping MUST be rejected before any
+  `pass` or clipboard-provider access, with an actionable error directing the user to
+  `ws help clip`.
+- **FR-042**: The system MUST expose the normative clip credential-mapping YAML schema, file
+  locations, merge rule, and a complete example through `ws help clip`, mirroring `ws help config`
+  for `.ws`.
+- **FR-043**: The clipboard destination MUST be configurable through the `WS_CLIPBOARD_PROVIDER`
+  environment variable, using the same program-plus-arguments convention as
+  `WS_TERMINAL_LAUNCHER`, and MUST default to `xclip -selection clipboard` when unset. `ws` MUST
+  write the resolved value only to the provider's standard input and MUST NOT read or forward the
+  provider's own stdout or stderr.
+- **FR-044**: A `pass`-backed entry MUST be resolved through the existing `PassProvider` boundary
+  (FR-025 through FR-028) at the moment `ws clip` runs; it MUST NOT be resolved, cached, or
+  exported during `ws up`, `ws change`, `ws down`, or `ws exit`.
 
 ### Key Entities *(include if data involved)*
 
@@ -595,6 +777,10 @@ command-specific authorization remain separate specifications.
   allowing an approved utility to request one named value without exposing the master passphrase.
 - **Interactive Command**: A `ws` utility command that performs a narrowly defined operation, such
   as copying a selected password-store entry.
+- **Clip Mapping**: The merged, validated result of the optional user-level and project-level clip
+  configuration files, keyed by `(NAMESPACE, ITEM)`.
+- **Clip Entry**: One mapping value: either a `pass` store path resolved on demand, or a fixed
+  non-secret `literal` value.
 
 ## Success Criteria *(mandatory)*
 
@@ -633,6 +819,13 @@ command-specific authorization remain separate specifications.
 - **SC-012**: The help output describes every supported MVP command, its required positional arguments,
   its side effects, the distinction between `up` and `change`, and at least one configured-workspace
   example without relying on local credentials.
+- **SC-013**: In 100% of automated `ws clip` tests, the fake `pass` provider is invoked only for the
+  exact entry the resolved `NAMESPACE ITEM` names (never for any other configured entry), and the
+  captured clipboard-provider input matches the expected value exactly, whether sourced from
+  `pass` or a `literal`.
+- **SC-014**: In 100% of automated `ws clip` tests targeting an unconfigured `NAMESPACE ITEM`, a
+  malformed mapping file, or a missing mapping file, zero invocations reach the fake `pass`
+  provider or the fake clipboard provider.
 
 ## Traceability
 
@@ -681,10 +874,19 @@ test do not exist yet, naming the `tasks.md` phase and task ids expected to clos
 | US7-AS7 | `tests/lifecycle.rs::given_an_existing_target_when_change_is_invoked_inside_tmux_then_it_switches_the_client` |
 | US7-AS8 | `tests/lifecycle.rs::given_a_missing_target_when_change_is_invoked_then_it_returns_a_recoverable_error` |
 | US7-AS9 | `tests/lifecycle.rs::given_outside_tmux_when_change_is_invoked_then_it_fails_without_contacting_tmux` |
-| US8-AS1 | Pending — out of MVP scope (spec's Security design decision); a future `clip` mapping specification. |
-| US8-AS2 | `tests/cli_help.rs::given_the_reserved_clip_command_when_invoked_then_it_reports_unsupported_without_a_password_store` |
-| US8-AS3 | `src/credentials/pass_provider.rs::tests::given_pass_is_locked_when_revealed_then_no_detail_is_included_in_the_error` |
-| US8-AS4 | `tests/cli_help.rs::given_the_reserved_clip_command_when_invoked_then_it_reports_unsupported_without_a_password_store` (the `clip` placeholder never calls the password-store provider; `PassProvider` itself is not yet wired into any command, so its own entry-scoping guarantee is covered by `src/credentials/pass_provider.rs::tests::given_a_requested_entry_when_revealed_then_only_that_entry_is_requested`, not a `ws up` integration test). |
+| US8-AS1 | `tests/clip.rs::given_a_pass_backed_entry_when_clip_is_invoked_then_only_that_entry_is_requested_and_copied` |
+| US8-AS2 | `tests/clip.rs::given_an_unconfigured_entry_when_clip_is_invoked_then_it_reports_not_configured_without_contacting_dependencies` |
+| US8-AS3 | `src/credentials/pass_provider.rs::tests::given_pass_is_locked_when_revealed_then_no_detail_is_included_in_the_error` (also exercised end-to-end by `src/lifecycle/clip.rs::tests::given_pass_is_locked_when_clip_runs_then_it_reports_a_credential_failure_without_secret_detail`). |
+| US8-AS4 | `tests/lifecycle.rs::given_a_non_credential_command_when_up_is_invoked_then_pass_is_never_contacted` |
+| US9-AS1 | `tests/clip.rs::given_a_pass_backed_entry_when_clip_is_invoked_then_only_that_entry_is_requested_and_copied` |
+| US9-AS2 | `tests/clip.rs::given_a_literal_entry_when_clip_is_invoked_then_pass_is_never_contacted` |
+| US9-AS3 | `tests/clip.rs::given_project_and_user_entries_collide_when_clip_is_invoked_then_the_project_entry_wins` |
+| US9-AS4 | `tests/clip.rs::given_an_unconfigured_entry_when_clip_is_invoked_then_it_reports_not_configured_without_contacting_dependencies` |
+| US9-AS5 | `tests/clip.rs::given_a_malformed_mapping_file_when_clip_is_invoked_then_it_reports_the_problem_without_contacting_dependencies` |
+| US9-AS6 | `tests/clip.rs::given_no_mapping_files_when_clip_is_invoked_then_it_reports_not_configured` |
+| US9-AS7 | `tests/clip.rs::given_no_clipboard_provider_configured_when_clip_is_invoked_then_it_uses_xclip_by_default` |
+| US9-AS8 | `tests/clip.rs::given_a_configured_clipboard_provider_when_clip_is_invoked_then_it_is_used_instead_of_the_default` |
+| US9-AS9 | `tests/cli_help.rs::given_missing_dependencies_when_requesting_clip_help_then_prints_the_mapping_reference` |
 
 ## Assumptions
 
@@ -701,10 +903,14 @@ test do not exist yet, naming the `tasks.md` phase and task ids expected to clos
   config`; future syntax or semantic changes require a language-versioned compatibility decision.
 - `pass` and its GPG-agent integration are already installed and configured for the user. `ws` uses
   that existing unlock flow and does not implement a password-store format or master-passphrase cache.
-- Future credential commands may map friendly names such as `git ssh` and `docker token` to pass
-  entries, but the mapping and supported names are not part of the workspace-layout MVP.
-- Clipboard integration and the detailed behavior of `ws clip git ssh` are separate specifications;
-  the current feature defines only the command namespace and security boundary.
+- `ws clip` maps friendly names such as `git ssh` and `docker token` to `pass` entries through the
+  user- and project-level mapping files defined in "Clip Credential Mapping Language (Normative
+  Reference)" and User Story 9; the specific entries a given user or project configures remain
+  outside this specification, which defines only the mapping format, locations, and merge rule.
+- Clipboard integration is now specified: `ws clip` defaults to `xclip -selection clipboard` and
+  is overridable through `WS_CLIPBOARD_PROVIDER`. Support for clipboard providers beyond that
+  program-plus-arguments convention (for example a provider requiring interactive authorization)
+  remains a separate specification.
 - The first implementation targets local Unix-like development environments; cross-platform terminal
   behavior, clipboard providers, separate-terminal launchers, and supported tmux versions must be
   confirmed during planning.

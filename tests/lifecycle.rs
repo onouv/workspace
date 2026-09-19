@@ -523,3 +523,36 @@ fn given_outside_tmux_when_exit_is_invoked_then_it_fails_clearly() {
         .code(5)
         .stderr(predicate::str::contains("tmux client"));
 }
+
+#[test]
+fn given_a_non_credential_command_when_up_is_invoked_then_pass_is_never_contacted() {
+    // Scenario: US8-AS4
+    let project = support::temporary_project();
+    let tmux_dir = support::fake_tmux_path_dir();
+    let credential_dir = support::fake_credential_path_dir();
+    let state_dir = support::temporary_project();
+    let pass_log = support::temporary_project();
+    let session_name = support::test_session_name("no-credential-access");
+
+    support::ws_command()
+        .args(["up", &session_name])
+        .current_dir(project.path())
+        .env(
+            "PATH",
+            format!(
+                "{}:{}",
+                tmux_dir.path().display(),
+                credential_dir.path().display()
+            ),
+        )
+        .env("WS_FAKE_TMUX_STATE", state_dir.path())
+        .env("WS_FAKE_PASS_LOG", pass_log.path().join("invocations"))
+        .env_remove("TMUX")
+        .assert()
+        .success();
+
+    assert!(
+        !pass_log.path().join("invocations").exists(),
+        "`ws up` must never contact pass, even when it is reachable on PATH"
+    );
+}
