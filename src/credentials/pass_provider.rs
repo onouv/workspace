@@ -1,14 +1,8 @@
 //! On-demand password-store provider boundary.
 //!
-//! `ws` never receives, caches, or exports the password-store master passphrase. A future
-//! credential-dependent utility requests exactly one named entry through the user's existing
-//! `pass`/GPG-agent unlock flow and streams it directly to its approved destination; this module
-//! only defines that boundary; no command wires it in yet (see `src/lifecycle/clip.rs`).
-
-// This boundary is intentionally reserved ahead of any concrete consumer: the workspace-layout
-// MVP deliberately keeps credential mapping and clipboard behavior out of scope (see the
-// specification's "Security design decision"), so nothing calls into this module yet.
-#![allow(dead_code)]
+//! `ws` never receives, caches, or exports the password-store master passphrase. `ws clip`
+//! requests exactly one named entry through the user's existing `pass`/GPG-agent unlock flow and
+//! streams it directly to its approved destination (see `src/lifecycle/clip.rs`).
 
 use std::ffi::{OsStr, OsString};
 use std::io;
@@ -137,6 +131,7 @@ mod tests {
 
     #[test]
     fn given_pass_is_locked_when_revealed_then_no_detail_is_included_in_the_error() {
+        // Scenario: US8-AS3
         fn locked_runner(_: &OsStr, _: &[OsString]) -> io::Result<Output> {
             Ok(Output {
                 status: failure_status(),

@@ -4,6 +4,9 @@ use std::env;
 use std::path::PathBuf;
 
 use crate::cli::{Cli, Command, HelpTopic};
+use crate::credentials::clip_mapping::{self, ClipMappingError};
+use crate::credentials::clipboard::ClipboardProvider;
+use crate::credentials::pass_provider::PassProvider;
 use crate::error::AppError;
 use crate::help;
 use crate::lifecycle::{change, clip, down, exit, up};
@@ -22,6 +25,10 @@ pub struct AppDependencies {
     pub terminal: TerminalContext,
     /// Confirmation prompt used by destructive commands.
     pub confirm: Box<dyn Confirm>,
+    /// On-demand password-store provider used by `ws clip`.
+    pub pass_provider: PassProvider,
+    /// Clipboard destination used by `ws clip`.
+    pub clipboard_provider: Box<dyn ClipboardProvider>,
 }
 
 /// Application orchestration boundary.
@@ -41,14 +48,16 @@ impl App {
     /// Execute a parsed command and return user-facing output.
     ///
     /// Discovery commands return static text without reading `.ws`, contacting tmux, invoking a
-    /// password store, prompting, or opening a terminal. The reserved `clip` namespace remains
-    /// unimplemented (User Story 8).
+    /// password store, prompting, or opening a terminal.
     pub fn execute(&self, cli: Cli) -> Result<String, AppError> {
         match cli.command {
             None | Some(Command::Help(crate::cli::HelpArgs { topic: None })) => Ok(help::general()),
             Some(Command::Help(crate::cli::HelpArgs {
                 topic: Some(HelpTopic::Config),
             })) => Ok(help::config().to_owned()),
+            Some(Command::Help(crate::cli::HelpArgs {
+                topic: Some(HelpTopic::Clip),
+            })) => Ok(help::clip().to_owned()),
             Some(Command::Up(crate::cli::UpArgs { session_name })) => {
                 let project_dir = current_project_dir();
                 up::execute(
@@ -74,7 +83,17 @@ impl App {
                 session_name.as_deref(),
                 yes,
             ),
-            Some(Command::Clip(_)) => clip::execute(),
+            Some(Command::Clip(crate::cli::ClipArgs { namespace, item })) => {
+                let project_dir = current_project_dir();
+                let mapping = clip_mapping::load(&project_dir).map_err(map_clip_mapping_error)?;
+                clip::execute(
+                    &self.dependencies.pass_provider,
+                    self.dependencies.clipboard_provider.as_ref(),
+                    &mapping,
+                    &namespace,
+                    &item,
+                )
+            }
         }
     }
 }
@@ -87,4 +106,10 @@ impl App {
 /// start), rather than being reported here as a misleadingly specific cause.
 fn current_project_dir() -> PathBuf {
     env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+}
+
+fn map_clip_mapping_error(error: ClipMappingError) -> AppError {
+    AppError::InvalidConfiguration {
+        message: error.to_string(),
+    }
 }

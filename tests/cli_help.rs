@@ -98,19 +98,23 @@ fn given_missing_dependencies_when_requesting_version_then_prints_only_version()
 }
 
 #[test]
-fn given_the_reserved_clip_command_when_invoked_then_it_reports_unsupported_without_a_password_store()
- {
-    // Scenario: US8-AS2, US8-AS4
+fn given_missing_dependencies_when_requesting_clip_help_then_prints_the_mapping_reference() {
+    // Scenario: US9-AS9
     let project = temporary_project_with_invalid_config();
 
     support::ws_command()
-        .args(["clip", "git", "ssh"])
+        .args(["help", "clip"])
         .current_dir(project.path())
         .env("PATH", "/path/that/does/not/exist")
         .assert()
-        .failure()
-        .stderr(predicate::str::contains("clip"))
-        .stderr(predicate::str::contains("not"));
+        .success()
+        .stdout(predicate::str::contains("Credential Mapping Reference"))
+        .stdout(predicate::str::contains("version: 1"))
+        .stdout(predicate::str::contains("entries:"))
+        .stdout(predicate::str::contains("XDG_CONFIG_HOME"))
+        .stdout(predicate::str::contains(".ws-clip"))
+        .stdout(predicate::str::contains("WS_CLIPBOARD_PROVIDER"))
+        .stderr(predicate::str::is_empty());
 }
 
 #[test]

@@ -59,9 +59,25 @@ it does not change the workspace definition.
 
 ## CredentialRequest
 
-A future, narrowly scoped request for one password-store entry. It contains an approved logical
-name and destination operation, never the master passphrase or a collection of entries. Credential
-requests are outside workspace creation and are fulfilled through `pass`/GPG-agent on demand.
+A narrowly scoped request for one password-store entry, made by `ws clip` when the resolved
+[ClipEntry](#clipentry) is `Pass`. It contains an approved logical name and destination operation,
+never the master passphrase or a collection of entries. Credential requests are outside workspace
+creation and are fulfilled through `pass`/GPG-agent on demand.
+
+## ClipMapping
+
+The merged, validated `(NAMESPACE, ITEM)` -> ClipEntry mapping used by `ws clip`, built from an
+optional user-level file (`$XDG_CONFIG_HOME/ws/clip.yaml`, falling back to
+`$HOME/.config/ws/clip.yaml`) and an optional project-level file (`.ws-clip` in the project
+directory), with project-level entries overriding user-level entries for the same pair. Either
+source file being absent is treated as an empty mapping.
+
+## ClipEntry
+
+One resolved credential source: either `Pass(path)`, resolved on demand via `pass show <path>`, or
+`Literal(value)`, a fixed non-secret value copied without contacting `pass`. Never contains a live
+secret value at rest — only `Pass`'s path is persisted in a mapping file; the revealed secret
+value exists only transiently in memory between the `pass` call and the clipboard write.
 
 ## State transitions
 
