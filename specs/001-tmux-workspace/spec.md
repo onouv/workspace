@@ -620,7 +620,8 @@ content reaches stdout, stderr, or the clipboard.
   a newline; values must not be silently truncated or reinterpreted.
 - A configured path is outside the project directory, is inaccessible, or disappears between
   validation and pane creation.
-- A configured command exits immediately, prompts for input, or is unavailable on the host.
+- A configured command exits immediately, prompts for input, or is unavailable on the host: its
+  pane remains (per FR-045) showing the command's output rather than disappearing.
 - The requested session name contains characters that tmux accepts but that could be unsafe when
   passed through a shell; generated arguments must be passed without shell interpolation.
 - The invocation runs inside tmux, outside tmux, with stdin redirected, or without color/interactive
@@ -762,6 +763,10 @@ content reaches stdout, stderr, or the clipboard.
 - **FR-044**: A `pass`-backed entry MUST be resolved through the existing `PassProvider` boundary
   (FR-025 through FR-028) at the moment `ws clip` runs; it MUST NOT be resolved, cached, or
   exported during `ws up`, `ws change`, `ws down`, or `ws exit`.
+- **FR-045**: A window or pane created with a configured `command` MUST remain after that command
+  exits, including a command that exits before the workspace finishes materializing, so its final
+  output stays visible and its early exit never destroys panes chained off it. A pane running the
+  user's normal shell (no configured `command`) is unaffected and closes as tmux normally would.
 
 ### Key Entities *(include if data involved)*
 

@@ -81,6 +81,17 @@ pub fn materialize_group(
     materialize(tmux, &new_anchor, resolved)
 }
 
+/// Wrap a configured `command` so its pane survives the command exiting, instead of tmux
+/// destroying the pane the instant the process behind it ends.
+///
+/// The pane sets `remain-on-exit` on itself, via its own `$TMUX_PANE`, before `exec`ing into
+/// `command`. Setting the option in a follow-up tmux call after pane creation loses the race
+/// against a command that exits immediately (for example `git status`): tmux may already have
+/// destroyed the pane by the time that call runs.
+pub(crate) fn persistent_command(command: &str) -> String {
+    format!(r#"tmux set-option -p -t "$TMUX_PANE" remain-on-exit on; exec {command}"#)
+}
+
 /// Split `anchor` to create one new pane at `pos`, with `content`'s path, command, and
 /// environment. Returns the new pane's tmux id, used as the anchor for anything split off it in
 /// turn.
@@ -111,7 +122,7 @@ fn split(
     args.push("#{pane_id}".into());
     if let Some(command) = &content.command {
         args.push("--".into());
-        args.push(command.clone().into());
+        args.push(persistent_command(command).into());
     }
     let output = tmux.execute(args)?;
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
@@ -134,7 +145,7 @@ mod tests {
 
     use ws::config::{PanePosition, ValidatedPaneDefinition};
 
-    use super::resolve_root;
+    use super::{persistent_command, resolve_root};
 
     fn leaf(pos: PanePosition, command: Option<&str>) -> ValidatedPaneDefinition {
         ValidatedPaneDefinition {
@@ -191,5 +202,15 @@ mod tests {
         // Both `shell` (the junction's second child) and the junction's own (empty) sibling
         // list are pending as further splits off the pane created for `logs`.
         assert_eq!(resolved.chained.len(), 2);
+    }
+
+    #[test]
+    fn given_a_command_when_wrapped_then_it_sets_remain_on_exit_on_its_own_pane_before_exec() {
+        let wrapped = persistent_command("git status");
+
+        assert_eq!(
+            wrapped,
+            r#"tmux set-option -p -t "$TMUX_PANE" remain-on-exit on; exec git status"#
+        );
     }
 }
