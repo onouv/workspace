@@ -36,6 +36,7 @@ fn main() -> ExitCode {
         Some("new-session") => new_session(&sessions_dir, &args),
         Some("new-window") => new_window(&sessions_dir, &args),
         Some("split-window") => split_window(&args),
+        Some("send-keys") => ExitCode::SUCCESS,
         Some("attach-session" | "switch-client") => attach_or_switch(&sessions_dir, &args),
         Some("kill-session") => kill_session(&sessions_dir, &args),
         Some("detach-client") => ExitCode::SUCCESS,
