@@ -68,7 +68,11 @@ fn create(
             session_name.into(),
         ]
     } else {
-        vec!["new-window".into(), "-t".into(), session_name.into()]
+        vec![
+            "new-window".into(),
+            "-t".into(),
+            format!("{session_name}:").into(),
+        ]
     };
     args.push("-n".into());
     args.push(window_name.into());
@@ -190,6 +194,34 @@ mod tests {
         materialize(&tmux, "target", &window, false).expect("materialization should succeed");
 
         assert_eq!(calls()[0][0], "new-window");
+    }
+
+    #[test]
+    fn given_an_additional_window_when_materialized_then_its_target_is_an_unambiguous_session_target()
+     {
+        // A bare session name as `new-window -t` is also a valid window-name match: if some
+        // other window in the session happens to share the session's name (as the first window
+        // legitimately can), tmux resolves `-t session_name` to *that window* instead of "the
+        // session, append at the end", and the new window collides with it ("index N in use").
+        // The target must therefore be unambiguous as a target-session, never bare.
+        let tmux = TmuxClient::with_runner(recording_runner as CommandRunner);
+        let window = ValidatedWindowDefinition {
+            name: "development".to_owned(),
+            path: "/project/app".into(),
+            command: None,
+            env: BTreeMap::new(),
+            panes: Vec::new(),
+        };
+
+        materialize(&tmux, "target", &window, false).expect("materialization should succeed");
+
+        let calls = calls();
+        assert_eq!(calls[0][0], "new-window");
+        let target_index = calls[0]
+            .iter()
+            .position(|arg| arg == "-t")
+            .expect("new-window should pass a -t target");
+        assert_eq!(calls[0][target_index + 1], "target:");
     }
 
     #[test]
