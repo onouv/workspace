@@ -3,7 +3,10 @@
 //! Session creation lives in [`super::window::materialize`], which creates the session together
 //! with its first window (`new-session` inherently creates exactly one window).
 
-use super::client::{TmuxClient, TmuxError};
+use super::client::{TmuxClient, TmuxError, exact_session_target};
+
+/// Session user option in which `ws` records the project folder of a session that it creates.
+pub const PROJECT_FOLDER_OPTION: &str = "@ws-project-folder";
 
 /// Return whether a session named `name` currently exists.
 ///
@@ -11,7 +14,7 @@ use super::client::{TmuxClient, TmuxError};
 /// tmux's normal way of reporting a missing session; a failure to invoke tmux at all (for
 /// example, because it is not installed) still propagates as [`TmuxError::Invocation`].
 pub fn exists(tmux: &TmuxClient, name: &str) -> Result<bool, TmuxError> {
-    match tmux.execute(["has-session", "-t", name]) {
+    match tmux.execute(["has-session", "-t", &exact_session_target(name)]) {
         Ok(_) => Ok(true),
         Err(TmuxError::CommandFailed { .. }) => Ok(false),
         Err(error) => Err(error),
@@ -23,7 +26,7 @@ pub fn exists(tmux: &TmuxClient, name: &str) -> Result<bool, TmuxError> {
 /// Used to roll back a session this invocation partially created when a later step in its
 /// launch plan fails, so setup failures never leave a half-built session behind.
 pub fn kill(tmux: &TmuxClient, name: &str) -> Result<(), TmuxError> {
-    tmux.execute(["kill-session", "-t", name])?;
+    tmux.execute(["kill-session", "-t", &exact_session_target(name)])?;
     Ok(())
 }
 
@@ -54,6 +57,21 @@ mod tests {
 
     fn failure_status() -> ExitStatus {
         std::os::unix::process::ExitStatusExt::from_raw(256)
+    }
+
+    fn exact_target_runner(_: &OsStr, args: &[OsString]) -> io::Result<Output> {
+        assert_eq!(args[2], OsString::from("=alpha"));
+        Ok(Output {
+            status: success_status(),
+            stdout: Vec::new(),
+            stderr: Vec::new(),
+        })
+    }
+
+    #[test]
+    fn given_a_session_name_when_checked_then_the_probe_uses_an_exact_target() {
+        let client = TmuxClient::with_runner(exact_target_runner as CommandRunner);
+        assert!(exists(&client, "alpha").expect("the probe should succeed"));
     }
 
     fn found_runner(_: &OsStr, _: &[OsString]) -> io::Result<Output> {

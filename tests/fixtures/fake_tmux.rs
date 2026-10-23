@@ -8,6 +8,11 @@
 //! (as `ws` does for `new-session`/`new-window`/`split-window`) prints a fresh fake pane id.
 //! `WS_FAKE_TMUX_FAIL_ON` names one subcommand (e.g. `split-window`) that fails every time it is
 //! invoked, deterministically simulating a setup failure partway through a launch plan.
+//!
+//! Like the real tmux, one invocation may chain several commands with a separate `;` argument,
+//! and a `-t` target may carry the exact-match prefix `=`. `set-option` stores session user
+//! options, and `list-sessions -F` renders `#{session_name}`, `#{session_path}`, and
+//! `#{@ws-project-folder}` for each fake session.
 
 use std::env;
 use std::fs::{self, OpenOptions};
@@ -25,6 +30,17 @@ fn main() -> ExitCode {
 
     let args: Vec<String> = env::args().skip(1).collect();
     log_invocation(&state_dir, &args);
+    for command in args.split(|arg| arg == ";") {
+        let result = run_command(&state_dir, &sessions_dir, command);
+        if result != ExitCode::SUCCESS {
+            return result;
+        }
+    }
+    ExitCode::SUCCESS
+}
+
+/// Run one command of a possibly `;`-chained invocation.
+fn run_command(state_dir: &Path, sessions_dir: &Path, args: &[String]) -> ExitCode {
     let subcommand = args.first().map(String::as_str);
     if let Ok(fail_on) = env::var("WS_FAKE_TMUX_FAIL_ON")
         && Some(fail_on.as_str()) == subcommand
@@ -32,20 +48,22 @@ fn main() -> ExitCode {
         return fail(&format!("fake-tmux: forced failure for {fail_on}"));
     }
     let result = match subcommand {
-        Some("has-session") => has_session(&sessions_dir, &args),
-        Some("new-session") => new_session(&sessions_dir, &args),
-        Some("new-window") => new_window(&sessions_dir, &args),
-        Some("split-window") => split_window(&args),
+        Some("has-session") => has_session(sessions_dir, args),
+        Some("new-session") => new_session(sessions_dir, args),
+        Some("new-window") => new_window(sessions_dir, args),
+        Some("split-window") => split_window(args),
         Some("send-keys") => ExitCode::SUCCESS,
-        Some("attach-session" | "switch-client") => attach_or_switch(&sessions_dir, &args),
-        Some("kill-session") => kill_session(&sessions_dir, &args),
+        Some("attach-session" | "switch-client") => attach_or_switch(sessions_dir, args),
+        Some("kill-session") => kill_session(sessions_dir, args),
+        Some("set-option") => set_option(state_dir, sessions_dir, args),
+        Some("list-sessions") => list_sessions(state_dir, sessions_dir, args),
         Some("detach-client") => ExitCode::SUCCESS,
         Some("display-message") => display_message(),
         Some(other) => fail(&format!("fake-tmux: unsupported command: {other}")),
         None => fail("fake-tmux: no command given"),
     };
     if result == ExitCode::SUCCESS && args.contains(&"-P".to_owned()) {
-        println!("%{}", next_pane_id(&state_dir));
+        println!("%{}", next_pane_id(state_dir));
     }
     result
 }
@@ -74,9 +92,11 @@ fn next_pane_id(state_dir: &Path) -> u32 {
     current
 }
 
+/// The `-t` target without the exact-match prefix `=`.
 fn target_argument(args: &[String]) -> Option<&str> {
     let position = args.iter().position(|arg| arg == "-t")?;
-    args.get(position + 1).map(String::as_str)
+    args.get(position + 1)
+        .map(|target| target.strip_prefix('=').unwrap_or(target))
 }
 
 fn named_argument<'a>(args: &'a [String], flag: &str) -> Option<&'a str> {
@@ -182,4 +202,53 @@ fn display_message() -> ExitCode {
 fn fail(message: &str) -> ExitCode {
     eprintln!("{message}");
     ExitCode::FAILURE
+}
+
+/// Store a session user option as `<state_dir>/options/<session>/<option>`.
+fn set_option(state_dir: &Path, sessions_dir: &Path, args: &[String]) -> ExitCode {
+    let Some(name) = target_argument(args) else {
+        return fail("fake-tmux: set-option requires -t");
+    };
+    if !session_marker(sessions_dir, name).exists() {
+        return fail(&format!("can't find session: {name}"));
+    }
+    let (Some(option), Some(value)) = (args.get(args.len() - 2), args.last()) else {
+        return fail("fake-tmux: set-option requires an option and a value");
+    };
+    let options_dir = state_dir.join("options").join(name);
+    fs::create_dir_all(&options_dir).expect("the fake tmux options directory should be creatable");
+    fs::write(options_dir.join(option), value).expect("the fake tmux option should be writable");
+    ExitCode::SUCCESS
+}
+
+/// Print one line per session, rendering the supported format variables.
+fn list_sessions(state_dir: &Path, sessions_dir: &Path, args: &[String]) -> ExitCode {
+    let format = named_argument(args, "-F").unwrap_or("#{session_name}");
+    let mut names: Vec<String> = fs::read_dir(sessions_dir)
+        .expect("the fake tmux sessions directory should be readable")
+        .filter_map(|entry| entry.ok()?.file_name().into_string().ok())
+        .collect();
+    if names.is_empty() {
+        return fail("no server running");
+    }
+    names.sort();
+    for name in names {
+        let marker = fs::read_to_string(session_marker(sessions_dir, &name)).unwrap_or_default();
+        let path = marker.lines().next().unwrap_or("");
+        let recorded = fs::read_to_string(
+            state_dir
+                .join("options")
+                .join(&name)
+                .join("@ws-project-folder"),
+        )
+        .unwrap_or_default();
+        println!(
+            "{}",
+            format
+                .replace("#{session_name}", &name)
+                .replace("#{session_path}", path)
+                .replace("#{@ws-project-folder}", &recorded)
+        );
+    }
+    ExitCode::SUCCESS
 }

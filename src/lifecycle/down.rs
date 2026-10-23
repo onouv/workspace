@@ -166,7 +166,7 @@ mod tests {
                         [
                             OsString::from("has-session"),
                             OsString::from("-t"),
-                            OsString::from("CURRENT")
+                            OsString::from("=CURRENT")
                         ]
                     );
                     output(success_status(), b"")
@@ -177,7 +177,7 @@ mod tests {
                         [
                             OsString::from("kill-session"),
                             OsString::from("-t"),
-                            OsString::from("CURRENT")
+                            OsString::from("=CURRENT")
                         ]
                     );
                     output(success_status(), b"")

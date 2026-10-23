@@ -1,12 +1,16 @@
-//! Decision flow for `ws up SESSION_NAME`: create or reconnect to a named workspace.
+//! Decision flow for `ws up [SESSION_NAME]`: create or reconnect to a named workspace.
 
+use std::fs;
 use std::path::Path;
 
 use crate::error::AppError;
+use crate::lifecycle::session_name_source::SessionNameSource;
 use crate::terminal::TerminalContext;
 use crate::terminal::launcher::{TerminalLauncher, TerminalLauncherError};
+use crate::terminal::notifier::Notifier;
 use crate::tmux::client::{TmuxClient, TmuxError};
 use crate::tmux::launch_plan::LaunchPlan;
+use crate::tmux::window_role::WindowRole;
 use crate::tmux::{session, window};
 
 /// Create or reconnect to `session_name`, following the specification's create-or-reconnect
@@ -16,13 +20,24 @@ use crate::tmux::{session, window};
 /// only when the target session does not yet exist. Outside tmux, the process attaches directly.
 /// Inside tmux, the current client is preserved and the target is opened through a separate
 /// terminal launcher instead of being nested or switched to.
+///
+/// For a name derived from the current folder, the notifier shows the name before any tmux
+/// contact, because an attach outside tmux blocks until the user detaches (003 FR-006).
 pub fn execute(
     tmux: &TmuxClient,
     terminal_launcher: &dyn TerminalLauncher,
     terminal: TerminalContext,
+    notifier: &dyn Notifier,
     project_dir: &Path,
-    session_name: &str,
+    source: &SessionNameSource,
 ) -> Result<String, AppError> {
+    let session_name = source.name();
+    if let SessionNameSource::Derived(_) = source {
+        notifier.notify(&format!(
+            "using session name `{session_name}` from the current folder"
+        ));
+    }
+
     if session::exists(tmux, session_name).map_err(map_tmux_error)? {
         return connect(tmux, terminal_launcher, terminal, session_name);
     }
@@ -30,7 +45,7 @@ pub fn execute(
     let definition = load_definition(project_dir)?;
     let plan = LaunchPlan::new(session_name.to_owned(), definition);
 
-    match apply_launch_plan(tmux, &plan) {
+    match apply_launch_plan(tmux, &plan, project_dir) {
         Ok(()) => {}
         // Another invocation won the race and created the target first; reconnect to it instead
         // of failing (US3-AS6). This only applies to the first window's `new-session` call, the
@@ -52,9 +67,24 @@ pub fn execute(
 
 /// Materialize every window (and its recursive pane tree) in declaration order (FR-011),
 /// identifying which window a failure occurred in.
-fn apply_launch_plan(tmux: &TmuxClient, plan: &LaunchPlan) -> Result<(), (String, TmuxError)> {
+///
+/// The first window records the canonical project folder in the new session, so a later
+/// `ws up` without a name can check which folder the session belongs to (003 FR-011).
+fn apply_launch_plan(
+    tmux: &TmuxClient,
+    plan: &LaunchPlan,
+    project_dir: &Path,
+) -> Result<(), (String, TmuxError)> {
+    let project_folder = fs::canonicalize(project_dir).unwrap_or_else(|_| project_dir.to_owned());
     for (index, definition) in plan.windows().iter().enumerate() {
-        window::materialize(tmux, plan.session_name(), definition, index == 0)
+        let role = if index == 0 {
+            WindowRole::First {
+                project_folder: &project_folder,
+            }
+        } else {
+            WindowRole::Additional
+        };
+        window::materialize(tmux, plan.session_name(), definition, role)
             .map_err(|error| (definition.name.clone(), error))?;
     }
     Ok(())
@@ -151,8 +181,11 @@ mod tests {
 
     use super::execute;
     use crate::error::AppError;
+    use crate::lifecycle::session_name_source::SessionNameSource;
+    use crate::session_name::derived_session_name::DerivedSessionName;
     use crate::terminal::TerminalContext;
     use crate::terminal::launcher::{TerminalLauncher, TerminalLauncherError};
+    use crate::terminal::notifier::RecordingNotifier;
     use crate::tmux::client::{CommandRunner, InteractiveRunner, TmuxClient};
 
     fn success_status() -> ExitStatus {
@@ -236,12 +269,42 @@ mod tests {
             &tmux,
             &launcher,
             TerminalContext::outside_tmux_for_test(),
+            &RecordingNotifier::default(),
             project.path(),
-            "target",
+            &SessionNameSource::Explicit("target".to_owned()),
         );
 
         assert!(result.is_ok(), "{result:?}");
         assert_eq!(launcher.call_count(), 0);
+    }
+
+    #[test]
+    fn given_a_derived_name_when_up_runs_then_the_notifier_shows_the_name_once() {
+        let tmux = TmuxClient::with_runners(
+            "fake-tmux",
+            session_found_runner as CommandRunner,
+            interactive_success as InteractiveRunner,
+        );
+        let launcher = RecordingLauncher::succeeding();
+        let notifier = RecordingNotifier::default();
+        let project = tempdir().expect("a temporary project directory should be available");
+        let derived = DerivedSessionName::derive(std::path::Path::new("/tmp/alpha"))
+            .expect("`alpha` is a usable folder name");
+
+        execute(
+            &tmux,
+            &launcher,
+            TerminalContext::outside_tmux_for_test(),
+            &notifier,
+            project.path(),
+            &SessionNameSource::Derived(derived),
+        )
+        .expect("the existing session should be connected");
+
+        assert_eq!(
+            notifier.lines(),
+            ["using session name `alpha` from the current folder"]
+        );
     }
 
     #[test]
@@ -255,8 +318,9 @@ mod tests {
             &tmux,
             &launcher,
             TerminalContext::inside_tmux_for_test(),
+            &RecordingNotifier::default(),
             project.path(),
-            "target",
+            &SessionNameSource::Explicit("target".to_owned()),
         );
 
         assert!(result.is_ok(), "{result:?}");
@@ -292,8 +356,9 @@ mod tests {
             &tmux,
             &launcher,
             TerminalContext::outside_tmux_for_test(),
+            &RecordingNotifier::default(),
             project.path(),
-            "target",
+            &SessionNameSource::Explicit("target".to_owned()),
         );
 
         assert!(result.is_ok(), "{result:?}");
@@ -328,8 +393,9 @@ mod tests {
             &tmux,
             &launcher,
             TerminalContext::outside_tmux_for_test(),
+            &RecordingNotifier::default(),
             project.path(),
-            "target",
+            &SessionNameSource::Explicit("target".to_owned()),
         );
 
         assert!(result.is_ok(), "{result:?}");
@@ -351,8 +417,9 @@ mod tests {
             &tmux,
             &launcher,
             TerminalContext::inside_tmux_for_test(),
+            &RecordingNotifier::default(),
             project.path(),
-            "target",
+            &SessionNameSource::Explicit("target".to_owned()),
         )
         .expect_err("an unavailable launcher should be a recoverable error");
 

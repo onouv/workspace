@@ -393,7 +393,7 @@ fn given_an_existing_target_when_change_is_invoked_inside_tmux_then_it_switches_
 
     let calls = read_calls(state_dir.path());
     assert!(
-        calls.contains(&format!("switch-client -t {session_name}")),
+        calls.contains(&format!("switch-client -t ={session_name}")),
         "{calls}"
     );
 }
@@ -449,7 +449,7 @@ fn given_yes_when_down_is_invoked_then_it_kills_the_named_session_without_prompt
 
     let calls = read_calls(state_dir.path());
     assert!(
-        calls.contains(&format!("kill-session -t {session_name}")),
+        calls.contains(&format!("kill-session -t ={session_name}")),
         "{calls}"
     );
 }

@@ -3,6 +3,7 @@ use std::io::{self, IsTerminal};
 
 pub mod confirm;
 pub mod launcher;
+pub mod notifier;
 
 /// Terminal capabilities relevant to prompting and workspace attachment.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
