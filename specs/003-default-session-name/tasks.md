@@ -124,13 +124,17 @@ test expects a missing name to fail.
 
 ### Tests
 
-- [ ] T035 [P] [US4] Test `given_the_filesystem_root_when_up_runs_without_a_name_then_it_exits_2_before_contacting_tmux` (US4-AS1) in `tests/default_session_name.rs`
-- [ ] T036 [P] [US4] Test `given_folder_my_project_with_a_dot_when_up_runs_without_a_name_then_it_creates_session_my_underscore_project` (US4-AS2) in `tests/default_session_name.rs`
-- [ ] T037 [P] [US4] Test `given_a_blank_or_control_character_folder_name_when_up_runs_without_a_name_then_it_exits_2_before_contacting_tmux` (US4-AS3) in `tests/default_session_name.rs` (non-UTF-8 case as a unit test in `src/session_name/derived_session_name.rs`)
+- [X] T035 [P] [US4] Test `given_the_filesystem_root_when_up_runs_without_a_name_then_it_exits_2_before_contacting_tmux` (US4-AS1) in `tests/default_session_name.rs`
+- [X] T036 [P] [US4] Test `given_folder_my_project_with_a_dot_when_up_runs_without_a_name_then_it_creates_session_my_underscore_project` (US4-AS2) in `tests/default_session_name.rs`
+- [X] T037 [P] [US4] Test `given_a_blank_or_control_character_folder_name_when_up_runs_without_a_name_then_it_exits_2_before_contacting_tmux` (US4-AS3) in `tests/default_session_name.rs` (non-UTF-8 case as a unit test in `src/session_name/derived_session_name.rs`)
 
 ### Implementation
 
-- [ ] T038 [US4] Complete `DeriveError` messages per `contracts/cli.md` in `src/session_name/derive_error.rs`; map `current_dir()` failure to `CurrentFolderUnreadable` in `src/session_name/logical_folder.rs`
+- [X] T038 [US4] Complete `DeriveError` messages per `contracts/cli.md` in `src/session_name/derive_error.rs`; map `current_dir()` failure to `CurrentFolderUnreadable` in `src/session_name/logical_folder.rs`
+
+Note: US4 behavior came with Phase 3, so T035–T037 passed at once. A mutation check (no `.`
+replacement) made T036 fail. T038 needed no change: the `DeriveError` messages match
+`contracts/cli.md`, and `current_dir()` failure maps to `CurrentFolderUnreadable` since Phase 3.
 
 ---
 

@@ -266,3 +266,82 @@ fn given_an_empty_or_blank_explicit_name_when_up_runs_then_it_exits_2_and_does_n
     let calls = read_calls(state_dir.path());
     assert!(calls.is_empty(), "no tmux command should run: {calls}");
 }
+
+#[test]
+fn given_the_filesystem_root_when_up_runs_without_a_name_then_it_exits_2_before_contacting_tmux() {
+    // Scenario: US4-AS1
+    let path_dir = support::fake_tmux_path_dir();
+    let state_dir = support::temporary_project();
+
+    support::ws_command()
+        .arg("up")
+        .current_dir("/")
+        .env("PWD", "/")
+        .env("PATH", path_dir.path())
+        .env("WS_FAKE_TMUX_STATE", state_dir.path())
+        .env_remove("TMUX")
+        .assert()
+        .failure()
+        .code(2)
+        .stderr(predicate::str::contains("the current folder has no name"))
+        .stderr(predicate::str::contains("run `ws up SESSION_NAME`"));
+
+    let calls = read_calls(state_dir.path());
+    assert!(calls.is_empty(), "no tmux command should run: {calls}");
+}
+
+#[test]
+fn given_folder_my_project_with_a_dot_when_up_runs_without_a_name_then_it_creates_session_my_underscore_project()
+ {
+    // Scenario: US4-AS2
+    let (_parent, folder) = project_folder_named("my.project");
+    let path_dir = support::fake_tmux_path_dir();
+    let state_dir = support::temporary_project();
+
+    support::ws_command()
+        .arg("up")
+        .current_dir(&folder)
+        .env("PWD", &folder)
+        .env("PATH", path_dir.path())
+        .env("WS_FAKE_TMUX_STATE", state_dir.path())
+        .env_remove("TMUX")
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("using session name `my_project`"));
+
+    assert!(
+        session_exists(state_dir.path(), "my_project"),
+        "{}",
+        read_calls(state_dir.path())
+    );
+}
+
+#[test]
+fn given_a_blank_or_control_character_folder_name_when_up_runs_without_a_name_then_it_exits_2_before_contacting_tmux()
+ {
+    // Scenario: US4-AS3
+    let path_dir = support::fake_tmux_path_dir();
+    let state_dir = support::temporary_project();
+
+    for (folder_name, cause) in [
+        ("   ", "the folder name is blank"),
+        ("a\tb", "the folder name contains a control character"),
+    ] {
+        let (_parent, folder) = project_folder_named(folder_name);
+        support::ws_command()
+            .arg("up")
+            .current_dir(&folder)
+            .env("PWD", &folder)
+            .env("PATH", path_dir.path())
+            .env("WS_FAKE_TMUX_STATE", state_dir.path())
+            .env_remove("TMUX")
+            .assert()
+            .failure()
+            .code(2)
+            .stderr(predicate::str::contains(cause))
+            .stderr(predicate::str::contains("run `ws up SESSION_NAME`"));
+    }
+
+    let calls = read_calls(state_dir.path());
+    assert!(calls.is_empty(), "no tmux command should run: {calls}");
+}
