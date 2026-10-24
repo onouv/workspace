@@ -24,11 +24,26 @@ ws up my-project
 
 - If a tmux session named `my-project` already exists, `ws` connects to it directly and never
   reads the local `.ws` file.
-- Otherwise, `ws` reads `.ws` in the current directory (or falls back to one default window if
-  it's missing or empty), validates it, and creates the session from it.
+- Otherwise, `ws` reads `.ws` in the current directory, validates it, and creates the session
+  from it. If `.ws` is missing or empty, `ws` first writes the default `.ws` (see
+  [Default workspace](#default-workspace)).
 - Outside tmux, `ws` attaches directly. From inside tmux, it preserves your current session and
   opens the target through a separate terminal client/window instead — see
   [Separate terminal launcher](#separate-terminal-launcher).
+
+Without a session name, `ws` uses the name of the current folder:
+
+```bash
+cd ~/projects/my.project
+ws up            # session name: my_project
+```
+
+- `ws` replaces each `.` and `:` in the folder name with `_`. It shows the name on stderr.
+- If a session with that name exists and belongs to this folder, `ws` connects to it.
+- If the session belongs to a different folder with the same name, `ws` stops with exit
+  status 5. Give a session name to start a second workspace.
+- If the folder name cannot be a session name (for example, in `/`), `ws` stops with exit
+  status 2. Give a session name.
 
 ## The `.ws` file
 
@@ -71,11 +86,27 @@ windows:
   to the spawned process only, never written into tmux's own session-level environment table.
 - Relative paths resolve against the directory containing `.ws`.
 
+### Default workspace
+
+In a folder without `.ws`, `ws up` creates `.ws` with four windows and tells you on stderr:
+
+| Window | Runs |
+|--------|------|
+| `root` | your normal shell |
+| `file` | `yazi` |
+| `git` | `lazygit` |
+| `claude` | `claude` |
+
+All four start in the project folder. Edit the file freely; `ws` never overwrites a `.ws` that is
+not empty. An empty `.ws` is replaced with the default, with a warning. If the folder is read-only,
+`ws` starts the same four windows without a file. A program that is not installed shows "command
+not found" in its window. `ws help config` shows the exact default content.
+
 ## Commands
 
 | Command | What it does |
 |---|---|
-| `ws up SESSION_NAME` | Create or reconnect to a workspace (see [Quick start](#quick-start)). |
+| `ws up [SESSION_NAME]` | Create or reconnect to a workspace. Without a name, the current folder name is the session name (see [Quick start](#quick-start)). |
 | `ws change SESSION_NAME` | Switch the current tmux client to an existing session, leaving the previous one running. Requires being inside tmux already; never reads `.ws`. |
 | `ws down SESSION_NAME --yes` | Kill a named session non-interactively. Without `--yes`, asks for interactive confirmation; refuses outright without a TTY. |
 | `ws exit` | Detach the current tmux client without killing its session. |

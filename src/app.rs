@@ -9,10 +9,15 @@ use crate::credentials::clipboard::ClipboardProvider;
 use crate::credentials::pass_provider::PassProvider;
 use crate::error::AppError;
 use crate::help;
+use crate::lifecycle::session_name_source::SessionNameSource;
 use crate::lifecycle::{change, clip, down, exit, up};
+use crate::session_name::derive_error::DeriveError;
+use crate::session_name::derived_session_name::DerivedSessionName;
+use crate::session_name::logical_folder;
 use crate::terminal::TerminalContext;
 use crate::terminal::confirm::Confirm;
 use crate::terminal::launcher::TerminalLauncher;
+use crate::terminal::notifier::Notifier;
 use crate::tmux::client::TmuxClient;
 
 /// Injectable external-effect dependencies for the application layer.
@@ -23,6 +28,8 @@ pub struct AppDependencies {
     pub terminal_launcher: Box<dyn TerminalLauncher>,
     /// Terminal capabilities detected for the current process.
     pub terminal: TerminalContext,
+    /// Destination for one-line notices on stderr, such as the derived session name.
+    pub notifier: Box<dyn Notifier>,
     /// Confirmation prompt used by destructive commands.
     pub confirm: Box<dyn Confirm>,
     /// On-demand password-store provider used by `ws clip`.
@@ -59,13 +66,18 @@ impl App {
                 topic: Some(HelpTopic::Clip),
             })) => Ok(help::clip().to_owned()),
             Some(Command::Up(crate::cli::UpArgs { session_name })) => {
+                let source = match session_name {
+                    Some(name) => SessionNameSource::Explicit(name),
+                    None => SessionNameSource::Derived(derive_session_name()?),
+                };
                 let project_dir = current_project_dir();
                 up::execute(
                     &self.dependencies.tmux,
                     self.dependencies.terminal_launcher.as_ref(),
                     self.dependencies.terminal,
+                    self.dependencies.notifier.as_ref(),
                     &project_dir,
-                    &session_name,
+                    &source,
                 )
             }
             Some(Command::Change(crate::cli::SessionArgs { session_name })) => change::execute(
@@ -106,6 +118,22 @@ impl App {
 /// start), rather than being reported here as a misleadingly specific cause.
 fn current_project_dir() -> PathBuf {
     env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+}
+
+/// Derive the session name from the logical current folder (003 FR-001, FR-002).
+///
+/// Runs before any tmux contact, so an unusable folder name fails without side effects
+/// (003 FR-004).
+fn derive_session_name() -> Result<DerivedSessionName, AppError> {
+    let folder = logical_folder::resolve(env::var_os("PWD").as_deref(), env::current_dir())
+        .map_err(map_derive_error)?;
+    DerivedSessionName::derive(&folder).map_err(map_derive_error)
+}
+
+fn map_derive_error(error: DeriveError) -> AppError {
+    AppError::InvalidInvocation {
+        message: error.to_string(),
+    }
 }
 
 fn map_clip_mapping_error(error: ClipMappingError) -> AppError {

@@ -8,6 +8,7 @@ mod credentials;
 mod error;
 mod help;
 mod lifecycle;
+mod session_name;
 mod terminal;
 mod tmux;
 
@@ -21,6 +22,7 @@ use crate::error::render_error;
 use crate::terminal::TerminalContext;
 use crate::terminal::confirm::TerminalConfirm;
 use crate::terminal::launcher::ConfiguredTerminalLauncher;
+use crate::terminal::notifier::StderrNotifier;
 use crate::tmux::client::TmuxClient;
 
 fn main() {
@@ -29,6 +31,7 @@ fn main() {
         tmux: TmuxClient::default(),
         terminal_launcher: Box::new(ConfiguredTerminalLauncher::from_env()),
         terminal: TerminalContext::detect(),
+        notifier: Box::new(StderrNotifier),
         confirm: Box::new(TerminalConfirm),
         pass_provider: PassProvider::default(),
         clipboard_provider: Box::new(ConfiguredClipboardProvider::from_env()),
