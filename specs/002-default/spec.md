@@ -18,13 +18,16 @@ This specification uses each term below with one meaning only.
 | Term | Meaning |
 |------|---------|
 | project folder | The current working directory of the `ws up` command (001 FR-009). |
+| `ws up [SESSION_NAME]` | `ws up` with or without a session name. With a name, `ws` uses that name (001). Without a name, `ws` derives the name from the project folder (003 FR-001). |
+| session name | The explicit name or the derived name. |
 | default content | The fixed `.ws` text in "Default Content (Normative)". |
 | default workspace | The four tmux windows that the default content defines. |
 | missing | No filesystem entry with the name `.ws` is in the project folder. |
 | empty | `.ws` is a regular file. Its content has zero characters or whitespace characters only. |
 | create | Make a `.ws` file in the project folder where none was. |
 | overwrite | Replace the content of an empty `.ws` file with the default content. |
-| message | One line on stderr that tells the user that `ws` created `.ws`. |
+| file message | One line on stderr that tells the user that `ws` created `.ws`. |
+| name message | The 003 "message": one line on stderr with the derived name (003 FR-006). |
 | warning | One line on stderr that tells the user about an overwrite or a failure. |
 
 ## Relationship to 001-tmux-workspace
@@ -45,6 +48,16 @@ These 001 items stay in force without change:
 - FR-007: An existing session ignores `.ws`.
 - FR-019: Inside tmux, `ws up` opens a separate terminal.
 - FR-045: `ws` types a configured command into the interactive shell of the pane.
+
+## Relationship to 003-default-session-name
+
+This feature applies to both forms of `ws up [SESSION_NAME]`. These 003 items stay in force
+without change:
+
+- FR-004: An unusable folder name stops `ws up` before tmux contact. `ws` does not write `.ws`.
+- FR-006: The name message comes before the file message or warning of this feature.
+- FR-011: A session with the derived name that belongs to a different folder stops `ws up`. The
+  session exists, so `ws` does not write `.ws` (FR-006 of this specification).
 
 ## Default Content (Normative)
 
@@ -84,7 +97,7 @@ numbers start at that `base-index`.
 
 ### User Story 1 - Start the default workspace without configuration (Priority: P1)
 
-The developer opens a project that has no `.ws` file. The developer runs `ws up SESSION_NAME`.
+The developer opens a project that has no `.ws` file. The developer runs `ws up [SESSION_NAME]`.
 The developer gets a shell, a file manager, a Git user interface, and Claude.
 
 **Why this priority**: This is the main function of the feature. It replaces the old one-shell
@@ -94,7 +107,7 @@ default.
 
 1. Make a temporary project folder without `.ws`.
 2. Put fake `yazi`, `lazygit`, and `claude` programs on `PATH`.
-3. Run `ws up SESSION_NAME` against a fake tmux or a disposable tmux server.
+3. Run `ws up [SESSION_NAME]` against a fake tmux or a disposable tmux server.
 4. Make sure that the session has the four windows of the default workspace, in order.
 5. Make sure that windows 1 to 3 received their commands.
 6. Make sure that window `root` has no command.
@@ -103,8 +116,8 @@ default.
 **Acceptance Scenarios**:
 
 1. **US1-AS1**. **Given** the session does not exist and `.ws` is missing, **When** the user runs
-   `ws up SESSION_NAME`, **Then** `ws` creates a session with exactly four windows. The order is
-   `root`, `file`, `git`, `claude`. Each window starts in the project folder.
+   `ws up [SESSION_NAME]`, **Then** `ws` creates a session with exactly four windows. The order
+   is `root`, `file`, `git`, `claude`. Each window starts in the project folder.
 2. **US1-AS2**. **Given** `ws` created the default workspace, **When** the user examines the
    windows, **Then** `root` has the normal shell and no command. `file` has `yazi`. `git` has
    `lazygit`. `claude` has `claude`. 001 FR-045 applies to each command.
@@ -113,6 +126,10 @@ default.
 4. **US1-AS4**. **Given** the user is in `SESSION_ONE` inside tmux, `OTHER_SESSION` does not exist,
    and `.ws` is missing, **When** the user runs `ws up OTHER_SESSION`, **Then** `ws` creates the
    default workspace in a separate terminal. `SESSION_ONE` does not change (001 FR-019).
+5. **US1-AS5**. **Given** the folder name gives a usable session name, that session does not
+   exist, and `.ws` is missing, **When** the user runs `ws up` without a name, **Then** `ws`
+   creates `.ws` and the default workspace. The stderr lines are, in order, the name message
+   (003 FR-006) and the file message (FR-007).
 
 ---
 
@@ -127,7 +144,7 @@ configuration.
 **Independent Test**:
 
 1. Make a temporary project folder without `.ws`.
-2. Run `ws up SESSION_NAME`.
+2. Run `ws up [SESSION_NAME]`.
 3. Make sure that `.ws` exists and is identical to the default content.
 4. Make sure that the normal `.ws` loader accepts the file.
 5. Change the file.
@@ -137,12 +154,12 @@ configuration.
 **Acceptance Scenarios**:
 
 1. **US2-AS1**. **Given** `.ws` is missing and the session does not exist, **When** the user runs
-   `ws up SESSION_NAME`, **Then** `ws` creates `.ws` with exactly the default content before it
+   `ws up [SESSION_NAME]`, **Then** `ws` creates `.ws` with exactly the default content before it
    creates the session.
 2. **US2-AS2**. **Given** `ws` created `.ws`, **When** `ws` creates the session, **Then** `ws` loads
    the file through the same loader as a file that the user wrote.
 3. **US2-AS3**. **Given** `ws` created `.ws`, **When** the command completes, **Then** `ws` shows a
-   message with the path of the file. `ws` writes nothing about the file to stdout.
+   file message with the path of the file. `ws` writes nothing about the file to stdout.
 4. **US2-AS4**. **Given** the user changed a `.ws` file that `ws` created, **When** the user runs
    `ws up` with a new session name, **Then** `ws` uses the changed file. `ws` does not create or
    change the file.
@@ -171,21 +188,22 @@ and safe (constitution III).
 **Acceptance Scenarios**:
 
 1. **US3-AS1**. **Given** the session exists and `.ws` is missing or empty, **When** the user runs
-   `ws up SESSION_NAME`, **Then** `ws` connects to the session. `ws` does not create or overwrite
-   `.ws` (001 FR-006, FR-007).
-2. **US3-AS2**. **Given** `.ws` is not empty, **When** the user runs `ws up SESSION_NAME`, **Then**
-   `ws` does not write to the file. This is true for a valid file and for an invalid file. `ws`
-   rejects an invalid file as 001 US6 specifies.
+   `ws up [SESSION_NAME]`, **Then** `ws` connects to the session. `ws` does not create or
+   overwrite `.ws` (001 FR-006, FR-007).
+2. **US3-AS2**. **Given** `.ws` is not empty, **When** the user runs `ws up [SESSION_NAME]`,
+   **Then** `ws` does not write to the file. This is true for a valid file and for an invalid
+   file. `ws` rejects an invalid file as 001 US6 specifies.
 3. **US3-AS3**. **Given** `.ws` is empty and the session does not exist, **When** the user runs
-   `ws up SESSION_NAME`, **Then** `ws` overwrites the file. Then `ws` starts the default workspace
+   `ws up [SESSION_NAME]`, **Then** `ws` overwrites the file. Then `ws` starts the default workspace
    from the file. Then `ws` shows a warning. The warning gives the path of the file and tells that
    `ws` replaced the empty content with the default content.
 4. **US3-AS4**. **Given** a second process creates `.ws` after `ws` checks for the file and before
    `ws` creates it, **When** `ws` tries to create the file, **Then** `ws` does not overwrite it.
    `ws` loads the file of the second process.
 5. **US3-AS5**. **Given** `.ws` is missing, **When** the user runs `ws`, `ws help`, `ws --help`,
-   `ws help config`, `ws --version`, or `ws up` with an invalid session name, **Then** `ws` does
-   not create `.ws`.
+   `ws help config`, `ws --version`, `ws up` with an invalid session name, `ws up` without a name
+   in a folder with an unusable name (003 FR-004), or `ws up` without a name when the session
+   belongs to a different folder (003 FR-011), **Then** `ws` does not create `.ws`.
 
 ---
 
@@ -200,7 +218,7 @@ file and the third-party programs are useful, but they are not necessary.
 **Independent Test**:
 
 1. Make a project folder where `ws` cannot create `.ws`.
-2. Run `ws up SESSION_NAME`.
+2. Run `ws up [SESSION_NAME]`.
 3. Make sure that the session has four windows.
 4. Remove `yazi`, `lazygit`, or `claude` from `PATH`.
 5. Run `ws up` with a new session name.
@@ -209,7 +227,7 @@ file and the third-party programs are useful, but they are not necessary.
 **Acceptance Scenarios**:
 
 1. **US4-AS1**. **Given** `.ws` is missing and `ws` cannot create it (for example, a read-only
-   folder), **When** the user runs `ws up SESSION_NAME`, **Then** `ws` shows a warning with the
+   folder), **When** the user runs `ws up [SESSION_NAME]`, **Then** `ws` shows a warning with the
    path and the cause. `ws` then starts the default workspace from the default content in memory.
 2. **US4-AS2**. **Given** `yazi`, `lazygit`, or `claude` is not installed, **When** the default
    workspace starts, **Then** `ws` creates all four windows. The window of the missing program
@@ -230,7 +248,11 @@ file and the third-party programs are useful, but they are not necessary.
 - `.ws` is a symlink to an empty file. `ws` does not overwrite it. `ws` uses the default content in
   memory and shows a warning (FR-009).
 - The user saves content into an empty `.ws` after `ws` reads it and before `ws` overwrites it.
-  `ws` stops the overwrite. `ws` loads the new content (FR-008).
+  `ws` stops the overwrite and loads the new content (FR-008). A save in the few system calls
+  between the last read and the write can be lost. The operating system has no atomic
+  "write if empty" operation (Assumptions).
+- `ws` stops (for example, a crash or a kill signal) after it makes the temporary file and before
+  it removes it. The temporary file can stay. The next `ws up` does not use it (FR-012).
 - An empty `.ws` is read-only, or its folder is read-only. `ws` does not change the file. `ws`
   uses the default content in memory and shows a warning (FR-009).
 - The path of the project folder contains spaces or shell metacharacters. The default content uses
@@ -238,6 +260,10 @@ file and the third-party programs are useful, but they are not necessary.
 - Two `ws up` commands with different session names start at the same time in a folder with a
   missing `.ws`. Only one command creates the file (exclusive create). Both commands use the same
   content.
+- Two `ws up` commands without a name start at the same time in the same folder with a missing
+  `.ws`. Both get the same derived name. The result is one `.ws` and one session. The command that
+  creates `.ws` shows the file message. The other command shows no file message. It loads that
+  file. It connects after the folder check passes (001 US3-AS6, 003 FR-011).
 - The tmux `base-index` of the user is not `0`. The window order does not change. The window
   numbers start at that `base-index`.
 - The shell of the user has an alias or a function with the name `yazi`, `lazygit`, or `claude`.
@@ -245,6 +271,10 @@ file and the third-party programs are useful, but they are not necessary.
   (001 FR-045).
 - `ws up` runs without a TTY (CI or redirected stdin). `ws` does not ask questions when it creates
   or overwrites the file.
+- `ws` created or overwrote `.ws`, and then the command fails. For example, tmux reports an
+  error, or `ws up` without a name loses the creation race to a session of a different folder
+  (003 FR-011). `ws` keeps `.ws`. The command fails as usual. The file message or warning
+  stays valid.
 - Version control finds the new `.ws`. `ws` does not change `.gitignore` or other files. The user
   decides whether to commit `.ws`.
 
@@ -252,7 +282,7 @@ file and the third-party programs are useful, but they are not necessary.
 
 ### Functional Requirements
 
-- **FR-001**: This requirement applies when `ws up SESSION_NAME` finds that the session does not
+- **FR-001**: This requirement applies when `ws up [SESSION_NAME]` finds that the session does not
   exist (after 001 FR-006) and `.ws` is missing. The system MUST create `.ws` with the default
   content. Then the system MUST start the session from that file.
 - **FR-002**: The created file MUST be identical, byte for byte, to the default content. The file
@@ -269,14 +299,17 @@ file and the third-party programs are useful, but they are not necessary.
   MUST load the file of the second process. FR-008 applies if that file is empty.
 - **FR-006**: The system MUST NOT create or overwrite `.ws` for these commands: help, version,
   `help config`, `change`, `down`, `exit`, `clip`. The system MUST NOT create or overwrite `.ws`
-  for `ws up` with an invalid session name. The system MUST NOT create or overwrite `.ws` for
-  `ws up` when the session exists.
-- **FR-007**: After the system creates a missing `.ws`, the system MUST show exactly one message.
-  The message MUST give the path of the file. The system MUST NOT write about the file to stdout.
+  for `ws up` with an invalid explicit session name or an unusable folder name (003 FR-004). The
+  system MUST NOT create or overwrite `.ws` for `ws up [SESSION_NAME]` when the session exists.
+  This includes a session of a different folder (003 FR-011).
+- **FR-007**: After the system creates a missing `.ws`, the system MUST show exactly one file
+  message. The file message MUST give the path of the file. The system MUST NOT write about the
+  file to stdout.
 - **FR-008**: This requirement applies when the session does not exist and `.ws` is empty. The
   system MUST overwrite the file. The system MUST then start the session as FR-004 specifies. The
-  system MUST overwrite the file only if it is still empty at the time of the overwrite. Thus
-  content from a second writer is never lost. After the overwrite, the system MUST show exactly
+  system MUST read the file again through the same open file immediately before the overwrite,
+  and MUST overwrite it only if it is still empty. The system MUST NOT overwrite a file that a
+  second writer replaced (a different file entry). After the overwrite, the system MUST show exactly
   one warning. The warning MUST give the path of the file. The warning MUST tell that the system
   replaced the empty content with the default content. The system MUST NOT write about the
   overwrite to stdout.
@@ -293,7 +326,9 @@ file and the third-party programs are useful, but they are not necessary.
   that the system never overwrites a file that is not empty. The 001 `.ws` language reference MUST
   agree with this text.
 - **FR-012**: The system MUST NOT change files other than the `.ws` file that it creates (FR-001)
-  or overwrites (FR-008). This includes `.gitignore`.
+  or overwrites (FR-008). This includes `.gitignore`. During a create, the system MAY make one
+  temporary file in the project folder. The system MUST remove it before `ws up` continues, also
+  when the create fails.
 
 ### Key Entities
 
@@ -318,37 +353,52 @@ file and the third-party programs are useful, but they are not necessary.
   `exit`, and `clip`, a missing `.ws` stays missing and an empty `.ws` stays empty.
 - **SC-005**: In 100% of the automated tests with a read-only folder or with a missing default
   program, the session has four windows and the exit status is zero.
-- **SC-006**: A developer in a new folder runs one `ws up SESSION_NAME` command without
+- **SC-006**: A developer in a new folder runs one `ws up [SESSION_NAME]` command without
   configuration. The developer then has a file manager, a Git user interface, and Claude.
 
 ## Traceability
 
-Each acceptance scenario has a stable `US<story>-AS<n>` id (constitution IV). All scenarios are
-**Pending** until `/speckit.tasks` gives each scenario a test. This feature replaces 001 US4-AS1
-and US4-AS2. When this feature is implemented, retire or move the 001 rows for these scenarios
-(`tests/lifecycle.rs::given_no_ws_file_when_up_is_invoked_then_it_creates_one_usable_default_window`).
+Each acceptance scenario has a stable `US<story>-AS<n>` id (constitution IV). Each scenario has
+exactly one owning test (table below). This feature replaces 001 US4-AS1 and US4-AS2. The 001
+test for these scenarios is retired, and the 001 table points to this feature. US1-AS3 and
+US4-AS2 need a real tmux server; their tests skip when tmux is not installed.
 
 | Scenario | Owning test / status |
 |----------|----------------------|
-| US1-AS1 | Pending |
-| US1-AS2 | Pending |
-| US1-AS3 | Pending |
-| US1-AS4 | Pending |
-| US2-AS1 | Pending |
-| US2-AS2 | Pending |
-| US2-AS3 | Pending |
-| US2-AS4 | Pending |
-| US3-AS1 | Pending |
-| US3-AS2 | Pending |
-| US3-AS3 | Pending |
-| US3-AS4 | Pending |
-| US3-AS5 | Pending |
-| US4-AS1 | Pending |
-| US4-AS2 | Pending |
-| US4-AS3 | Pending |
+| US1-AS1 | `tests/default_workspace.rs::given_no_ws_file_when_up_runs_then_the_session_has_windows_root_file_git_claude_in_order_in_the_project_folder` |
+| US1-AS2 | `tests/default_workspace.rs::given_no_ws_file_when_up_runs_then_file_git_and_claude_get_their_commands_and_root_gets_none` |
+| US1-AS3 | `tests/real_tmux.rs::given_no_ws_file_when_up_runs_on_real_tmux_then_window_root_is_active` |
+| US1-AS4 | `tests/default_workspace.rs::given_the_user_is_inside_tmux_and_no_ws_file_when_up_runs_with_another_name_then_the_default_workspace_opens_in_a_separate_terminal` |
+| US1-AS5 | `tests/default_workspace.rs::given_no_ws_file_when_up_runs_without_a_name_then_stderr_shows_the_name_message_then_the_file_message` |
+| US2-AS1 | `tests/default_workspace.rs::given_no_ws_file_when_up_runs_then_ws_contains_exactly_the_default_content` |
+| US2-AS2 | `tests/default_workspace.rs::given_ws_created_the_file_when_the_file_is_loaded_then_the_normal_loader_gives_the_session_windows` |
+| US2-AS3 | `tests/default_workspace.rs::given_no_ws_file_when_up_runs_then_stderr_has_one_file_message_with_the_path_and_stdout_is_empty` |
+| US2-AS4 | `tests/default_workspace.rs::given_the_user_changed_the_created_file_when_up_runs_with_a_new_name_then_ws_uses_the_change_and_does_not_write_the_file` |
+| US3-AS1 | `tests/default_workspace.rs::given_the_session_exists_and_ws_is_missing_or_empty_when_up_runs_then_ws_does_not_change` |
+| US3-AS2 | `tests/default_workspace.rs::given_a_valid_or_invalid_non_empty_ws_when_up_runs_then_the_content_and_modification_time_do_not_change` |
+| US3-AS3 | `tests/default_workspace.rs::given_an_empty_ws_when_up_runs_then_ws_overwrites_it_starts_the_default_workspace_and_shows_one_warning` |
+| US3-AS4 | `src/lifecycle/setup_file.rs::given_another_writer_created_ws_when_create_missing_runs_then_the_other_content_is_kept` |
+| US3-AS5 | `tests/default_workspace.rs::given_no_ws_file_when_help_version_or_an_invalid_name_runs_then_no_ws_is_created` |
+| US4-AS1 | `tests/default_workspace.rs::given_a_read_only_folder_and_no_ws_file_when_up_runs_then_it_warns_starts_four_windows_and_exits_0` |
+| US4-AS2 | `tests/real_tmux.rs::given_the_default_programs_are_missing_when_up_runs_on_real_tmux_then_all_four_windows_exist` |
+| US4-AS3 | `tests/default_workspace.rs::given_a_folder_that_is_not_a_git_repository_when_up_runs_then_the_git_window_is_created` |
+
+## Clarifications
+
+### Session 2026-10-24
+
+- Q: When `ws up` has created or overwritten `.ws` and the command then fails, does `.ws` stay?
+  → A: Yes. `ws` keeps `.ws` (Edge Cases).
+- Q: Which term does 002 use for its stderr line, because 003 already uses "message"? → A: "file
+  message". "name message" refers to the 003 line (Terms).
+- Q: Two `ws up` commands without a name start at the same time in the same folder with a missing
+  `.ws`. What is the result? → A: One `.ws` and one session. Only the creator shows the file
+  message (Edge Cases).
 
 ## Assumptions
 
+- A save into an empty `.ws` at the same moment that `ws up` overwrites it is improbable. The
+  remaining window (FR-008) is accepted.
 - The window names are `root`, `file`, `git`, and `claude`. They come from the request: "0: root",
   "1: file", "2: git", "3: claude". The numbers are tmux window numbers with the default
   `base-index` of `0`.
