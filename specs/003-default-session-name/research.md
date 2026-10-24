@@ -54,10 +54,11 @@ Each item gives the decision, the rationale, and the alternatives.
 
 ## R5. Record the project folder atomically
 
-- **Decision**: Append `; set-option -t <session> @ws-project-folder <canonical project folder>`
+- **Decision**: Append `; set-option -t =<session>: @ws-project-folder <canonical project folder>`
   to the same tmux invocation as `new-session` (tmux runs `;`-chained commands in one queue).
 - **Rationale**: A second `ws up` cannot see the session without the option. No extra rollback
-  path.
+  path. `set-option -t` takes a pane target: `=NAME` alone fails with "no such session"; `=NAME:`
+  names the session exactly (verified with tmux 3.5a).
 - **Alternatives**: A second `set-option` call. Rejected: a short window where the option is
   missing gives a false refusal.
 

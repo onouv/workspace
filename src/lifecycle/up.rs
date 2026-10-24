@@ -5,11 +5,13 @@ use std::path::Path;
 
 use crate::error::AppError;
 use crate::lifecycle::session_name_source::SessionNameSource;
+use crate::session_name::derived_session_name::DerivedSessionName;
 use crate::terminal::TerminalContext;
 use crate::terminal::launcher::{TerminalLauncher, TerminalLauncherError};
 use crate::terminal::notifier::Notifier;
 use crate::tmux::client::{TmuxClient, TmuxError};
 use crate::tmux::launch_plan::LaunchPlan;
+use crate::tmux::session_folder::FolderCheck;
 use crate::tmux::window_role::WindowRole;
 use crate::tmux::{session, window};
 
@@ -22,7 +24,9 @@ use crate::tmux::{session, window};
 /// terminal launcher instead of being nested or switched to.
 ///
 /// For a name derived from the current folder, the notifier shows the name before any tmux
-/// contact, because an attach outside tmux blocks until the user detaches (003 FR-006).
+/// contact, because an attach outside tmux blocks until the user detaches (003 FR-006). Before it
+/// connects to an existing session, the session must belong to the project folder (003 FR-011).
+/// This also applies when another invocation won the creation race.
 pub fn execute(
     tmux: &TmuxClient,
     terminal_launcher: &dyn TerminalLauncher,
@@ -39,6 +43,7 @@ pub fn execute(
     }
 
     if session::exists(tmux, session_name).map_err(map_tmux_error)? {
+        ensure_session_belongs_to_folder(tmux, source)?;
         return connect(tmux, terminal_launcher, terminal, session_name);
     }
 
@@ -50,7 +55,9 @@ pub fn execute(
         // Another invocation won the race and created the target first; reconnect to it instead
         // of failing (US3-AS6). This only applies to the first window's `new-session` call, the
         // only one that can fail this way.
-        Err((_, error)) if session::is_duplicate_session_error(&error) => {}
+        Err((_, error)) if session::is_duplicate_session_error(&error) => {
+            ensure_session_belongs_to_folder(tmux, source)?;
+        }
         Err((window_name, error)) => {
             // The first window's own creation call (`new-session`) is what brings the session
             // into existence; if a later window or pane failed instead, roll back the session
@@ -63,6 +70,40 @@ pub fn execute(
     }
 
     connect(tmux, terminal_launcher, terminal, session_name)
+}
+
+/// For a derived name, fail unless the existing session belongs to the project folder
+/// (003 FR-011). An explicit name connects without this check.
+fn ensure_session_belongs_to_folder(
+    tmux: &TmuxClient,
+    source: &SessionNameSource,
+) -> Result<(), AppError> {
+    let SessionNameSource::Derived(derived) = source else {
+        return Ok(());
+    };
+    let folder = session::folder(tmux, derived.name()).map_err(map_tmux_error)?;
+    match folder
+        .as_ref()
+        .map(|folder| (folder.check(derived.project_folder()), folder))
+    {
+        Some((FolderCheck::Match, _)) => Ok(()),
+        Some((FolderCheck::Mismatch, folder)) => Err(folder_conflict(
+            derived,
+            &format!("belongs to {}", folder.path().display()),
+        )),
+        Some((FolderCheck::Unreadable, _)) | None => {
+            Err(folder_conflict(derived, "has a folder that cannot be read"))
+        }
+    }
+}
+
+fn folder_conflict(derived: &DerivedSessionName, cause: &str) -> AppError {
+    AppError::OperationFailed {
+        message: format!(
+            "session `{}` {cause}; run `ws up SESSION_NAME` with a different name",
+            derived.name()
+        ),
+    }
 }
 
 /// Materialize every window (and its recursive pane tree) in declaration order (FR-011),
@@ -282,7 +323,7 @@ mod tests {
     fn given_a_derived_name_when_up_runs_then_the_notifier_shows_the_name_once() {
         let tmux = TmuxClient::with_runners(
             "fake-tmux",
-            session_found_runner as CommandRunner,
+            missing_then_created_runner as CommandRunner,
             interactive_success as InteractiveRunner,
         );
         let launcher = RecordingLauncher::succeeding();
@@ -299,7 +340,7 @@ mod tests {
             project.path(),
             &SessionNameSource::Derived(derived),
         )
-        .expect("the existing session should be connected");
+        .expect("the missing session should be created");
 
         assert_eq!(
             notifier.lines(),
@@ -372,6 +413,46 @@ mod tests {
             Some("attach-session") => output(success_status(), b""),
             _ => panic!("unexpected tmux invocation: {args:?}"),
         }
+    }
+
+    fn race_lost_to_another_folder_runner(_: &OsStr, args: &[OsString]) -> io::Result<Output> {
+        match args.first().and_then(|arg| arg.to_str()) {
+            Some("has-session") => output(failure_status(), b"can't find session"),
+            Some("new-session") => output(failure_status(), b"duplicate session: alpha"),
+            Some("list-sessions") => Ok(Output {
+                status: success_status(),
+                stdout: b"alpha\t/\t/\n".to_vec(),
+                stderr: Vec::new(),
+            }),
+            _ => panic!("unexpected tmux invocation: {args:?}"),
+        }
+    }
+
+    #[test]
+    fn given_a_derived_name_and_the_race_is_lost_to_another_folder_when_up_runs_then_it_fails_without_connecting()
+     {
+        let tmux = TmuxClient::with_runner(race_lost_to_another_folder_runner as CommandRunner);
+        let launcher = RecordingLauncher::succeeding();
+        let parent = tempdir().expect("a temporary parent folder should be available");
+        let project = parent.path().join("alpha");
+        std::fs::create_dir(&project).expect("the project folder should be creatable");
+        let derived = DerivedSessionName::derive(&project).expect("`alpha` is a usable name");
+
+        let error = execute(
+            &tmux,
+            &launcher,
+            TerminalContext::inside_tmux_for_test(),
+            &RecordingNotifier::default(),
+            &project,
+            &SessionNameSource::Derived(derived),
+        )
+        .expect_err("a session of another folder must not be connected");
+
+        assert!(
+            matches!(error, AppError::OperationFailed { .. }),
+            "{error:?}"
+        );
+        assert_eq!(launcher.call_count(), 0);
     }
 
     #[test]

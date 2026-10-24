@@ -1,21 +1,9 @@
 <!--
 Sync Impact Report
-- Version change: 1.4.0 -> 1.5.0
-- Modified principles:
-  - III. Explicit Errors and Safe Failure — added a rule against leaking internal module
-    paths, Rust type names, or other implementation detail into user-facing messages.
-  - IV. Behavior Is Defined by Tests — added stable `US<story>-AS<n>` acceptance-scenario
-    ids, a `// Scenario: US<story>-AS<n>` test marker requirement, one-scenario-one-test
-    ownership, and a formal `given_<context>_when_<action>_then_<outcome>` test-naming rule
-    (nested `mod given_<context>` blocks permitted, not required).
-  - VII. Idiomatic Rust, Readability, and Maintainability — added non-binding size guidance
-    for functions and files alongside the existing "readable size" requirement.
+- Version change: 1.5.0 -> 1.5.1
+- Modified principles: none. 
 - Added principles:
-  - IX. Bounded Execution and Immutable Validated State — explicit iteration caps for
-    runtime-conditioned loops, a documented maximum recursion depth for externally supplied
-    nested structure (the `.ws` pane hierarchy), immutable validated configuration/launch-plan
-    types with invariants enforced at construction, and a builder-pattern requirement for
-    constructors with more than two arguments or repeated argument types.
+  - X. Writing Style
 - Added sections: none (new content placed within existing principles and one new principle).
 - Removed sections: none.
 - Follow-up TODOs:
@@ -183,6 +171,14 @@ constructed and MUST validate their invariants at construction, so that any inst
 scope is known-valid for its lifetime. A constructor requiring more than two arguments, or
 any two arguments of the same type, MUST use a builder rather than a positional constructor
 to avoid argument-order mistakes.
+
+### X. Writing style
+Whenever answering to a prompt or question, or whenever writing documents for this project,
+use the spirit of ASD STE100. Keep sentence structures direct, limit procedural steps to
+single actions and avoid unnecessary synonyms.
+
+Apply this rule to all files and all code comments. Keep files and comments consistent with this rule
+(pre-existing documents MUST not be changed, unless explicitly requested by user).
 
 ## Technology and Runtime Constraints
 

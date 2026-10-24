@@ -97,7 +97,8 @@ fn create(
             ";".into(),
             "set-option".into(),
             "-t".into(),
-            exact_session_target(session_name).into(),
+            // `set-option -t` takes a pane target; the trailing `:` makes `=NAME` a session.
+            format!("{}:", exact_session_target(session_name)).into(),
             PROJECT_FOLDER_OPTION.into(),
             project_folder.as_os_str().to_owned(),
         ]);
@@ -229,7 +230,7 @@ mod tests {
                 ";",
                 "set-option",
                 "-t",
-                "=target",
+                "=target:",
                 "@ws-project-folder",
                 "/project"
             ]

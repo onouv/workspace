@@ -4,6 +4,7 @@
 //! with its first window (`new-session` inherently creates exactly one window).
 
 use super::client::{TmuxClient, TmuxError, exact_session_target};
+use super::session_folder::SessionFolder;
 
 /// Session user option in which `ws` records the project folder of a session that it creates.
 pub const PROJECT_FOLDER_OPTION: &str = "@ws-project-folder";
@@ -19,6 +20,26 @@ pub fn exists(tmux: &TmuxClient, name: &str) -> Result<bool, TmuxError> {
         Err(TmuxError::CommandFailed { .. }) => Ok(false),
         Err(error) => Err(error),
     }
+}
+
+/// Return the folder of the session named exactly `name`, or `None` when tmux reports no such
+/// session or no folder for it.
+///
+/// One `list-sessions` call reads all sessions; the name is compared in Rust, so tmux target
+/// matching does not apply (003 research R4).
+pub fn folder(tmux: &TmuxClient, name: &str) -> Result<Option<SessionFolder>, TmuxError> {
+    let format = format!("#{{session_name}}\t#{{{PROJECT_FOLDER_OPTION}}}\t#{{session_path}}");
+    let output = tmux.execute(["list-sessions", "-F", format.as_str()])?;
+    let listing = String::from_utf8_lossy(&output.stdout);
+    Ok(listing.lines().find_map(|row| {
+        let mut fields = row.splitn(3, '\t');
+        let (row_name, recorded, start) = (fields.next()?, fields.next()?, fields.next()?);
+        if row_name == name {
+            SessionFolder::choose(recorded, start)
+        } else {
+            None
+        }
+    }))
 }
 
 /// Terminate the session named `name`.
@@ -48,7 +69,7 @@ mod tests {
     use std::io;
     use std::process::{ExitStatus, Output};
 
-    use super::{exists, is_duplicate_session_error};
+    use super::{exists, folder, is_duplicate_session_error};
     use crate::tmux::client::{CommandRunner, TmuxClient, TmuxError};
 
     fn success_status() -> ExitStatus {
@@ -88,6 +109,28 @@ mod tests {
             stdout: Vec::new(),
             stderr: b"can't find session: target".to_vec(),
         })
+    }
+
+    fn listing_runner(_: &OsStr, args: &[OsString]) -> io::Result<Output> {
+        assert_eq!(args[0], OsString::from("list-sessions"));
+        Ok(Output {
+            status: success_status(),
+            stdout: b"alphabet\t/elsewhere\t/elsewhere\nalpha\t\t/project\n".to_vec(),
+            stderr: Vec::new(),
+        })
+    }
+
+    #[test]
+    fn given_a_listing_with_a_prefix_name_when_the_folder_is_read_then_only_the_exact_name_matches()
+    {
+        let client = TmuxClient::with_runner(listing_runner as CommandRunner);
+
+        let folder = folder(&client, "alpha").expect("the listing should succeed");
+
+        assert_eq!(
+            folder.as_ref().map(|folder| folder.path()),
+            Some(std::path::Path::new("/project"))
+        );
     }
 
     #[test]

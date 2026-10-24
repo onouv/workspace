@@ -206,8 +206,13 @@ fn fail(message: &str) -> ExitCode {
 
 /// Store a session user option as `<state_dir>/options/<session>/<option>`.
 fn set_option(state_dir: &Path, sessions_dir: &Path, args: &[String]) -> ExitCode {
-    let Some(name) = target_argument(args) else {
+    let Some(target) = target_argument(args) else {
         return fail("fake-tmux: set-option requires -t");
+    };
+    // Like the real tmux, `set-option -t` takes a pane target, so a bare `NAME` without `:`
+    // does not name a session.
+    let Some(name) = target.strip_suffix(':').map(session_from_target) else {
+        return fail(&format!("no such session: {target}"));
     };
     if !session_marker(sessions_dir, name).exists() {
         return fail(&format!("can't find session: {name}"));

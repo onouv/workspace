@@ -28,7 +28,7 @@ ws up [SESSION_NAME]
 |------|------|-----------------|
 | No folder name, not text, blank, control character | 2 | `error: invalid invocation: cannot use the current folder name as a session name (<cause>); run \`ws up SESSION_NAME\` with an explicit name` |
 | Session folder differs | 5 | `error: workspace operation failed: session \`NAME\` belongs to <session folder>; run \`ws up SESSION_NAME\` with a different name` |
-| Session folder unreadable | 5 | `error: workspace operation failed: cannot read the folder of session \`NAME\`; run \`ws up SESSION_NAME\` with a different name` |
+| Session folder unreadable | 5 | `error: workspace operation failed: session \`NAME\` has a folder that cannot be read; run \`ws up SESSION_NAME\` with a different name` |
 
 ## stdout
 

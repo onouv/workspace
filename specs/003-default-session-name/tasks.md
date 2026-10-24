@@ -76,20 +76,23 @@ name, so a later `ws up` without a name can match it.
 
 ### Tests
 
-- [ ] T022 [P] [US2] Unit tests for the folder check (match, mismatch, unreadable, recorded beats start dir, symlink resolves) in `src/tmux/session_folder.rs`
-- [ ] T023 [P] [US2] Test `given_session_alpha_belongs_to_this_folder_when_up_runs_without_a_name_outside_tmux_then_it_attaches_without_reading_ws` (US2-AS1) in `tests/default_session_name.rs`
-- [ ] T024 [P] [US2] Test `given_session_alpha_belongs_to_this_folder_when_up_runs_without_a_name_inside_tmux_then_it_opens_a_separate_terminal` (US2-AS2) in `tests/default_session_name.rs`
-- [ ] T025 [P] [US2] Test `given_session_alpha_belongs_to_another_folder_when_up_runs_without_a_name_then_it_exits_5_and_does_not_connect` (US2-AS3) in `tests/default_session_name.rs`
-- [ ] T026 [P] [US2] Test `given_plain_tmux_made_session_alpha_in_this_folder_when_up_runs_without_a_name_then_it_attaches` (US2-AS4) in `tests/default_session_name.rs`
+- [X] T022 [P] [US2] Unit tests for the folder check (match, mismatch, unreadable, recorded beats start dir, symlink resolves) in `src/tmux/session_folder.rs`
+- [X] T023 [P] [US2] Test `given_session_alpha_belongs_to_this_folder_when_up_runs_without_a_name_outside_tmux_then_it_attaches_without_reading_ws` (US2-AS1) in `tests/default_session_name.rs`
+- [X] T024 [P] [US2] Test `given_session_alpha_belongs_to_this_folder_when_up_runs_without_a_name_inside_tmux_then_it_opens_a_separate_terminal` (US2-AS2) in `tests/default_session_name.rs`
+- [X] T025 [P] [US2] Test `given_session_alpha_belongs_to_another_folder_when_up_runs_without_a_name_then_it_exits_5_and_does_not_connect` (US2-AS3) in `tests/default_session_name.rs`
+- [X] T026 [P] [US2] Test `given_plain_tmux_made_session_alpha_in_this_folder_when_up_runs_without_a_name_then_it_attaches` (US2-AS4) in `tests/default_session_name.rs`
 
 ### Implementation
 
-- [ ] T027 [US2] Implement `SessionFolder` and `check(project_folder)` in `src/tmux/session_folder.rs` (R4, R6)
-- [ ] T028 [US2] Implement `session::folder(tmux, name)` with `list-sessions -F` and exact name match in `src/tmux/session.rs` (R4)
-- [ ] T029 [US2] In `src/lifecycle/up.rs` run the folder check for `Derived` when the session exists and after a duplicate-session race; map failures to `AppError::OperationFailed` with the contract message (FR-011, R9, R10)
-- [ ] T030 [US2] Unit test in `src/lifecycle/up.rs`: duplicate-session race with a different folder fails (R10)
+- [X] T027 [US2] Implement `SessionFolder` and `check(project_folder)` in `src/tmux/session_folder.rs` (R4, R6)
+- [X] T028 [US2] Implement `session::folder(tmux, name)` with `list-sessions -F` and exact name match in `src/tmux/session.rs` (R4)
+- [X] T029 [US2] In `src/lifecycle/up.rs` run the folder check for `Derived` when the session exists and after a duplicate-session race; map failures to `AppError::OperationFailed` with the contract message (FR-011, R9, R10)
+- [X] T030 [US2] Unit test in `src/lifecycle/up.rs`: duplicate-session race with a different folder fails (R10)
 
 **Checkpoint**: US1 and US2 tests pass.
+
+Note: verified against real tmux 3.5a. `set-option -t` takes a pane target, so the chained call
+uses `=NAME:` (not `=NAME`). The fake tmux now rejects a `set-option` target without `:`.
 
 ---
 

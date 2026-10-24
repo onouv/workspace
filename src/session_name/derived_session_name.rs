@@ -1,7 +1,7 @@
 //! A session name made from the name of the current folder.
 
 use std::ffi::OsStr;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use super::derive_error::DeriveError;
 
@@ -11,6 +11,7 @@ use super::derive_error::DeriveError;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DerivedSessionName {
     name: String,
+    project_folder: PathBuf,
 }
 
 impl DerivedSessionName {
@@ -21,12 +22,19 @@ impl DerivedSessionName {
             .ok_or(DeriveError::NoFolderName)?;
         Ok(Self {
             name: name_from(folder_name)?,
+            project_folder: project_folder.to_owned(),
         })
     }
 
     /// The derived session name.
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    /// The project folder that the name comes from. The folder check compares the session
+    /// folder with it (003 FR-011).
+    pub fn project_folder(&self) -> &Path {
+        &self.project_folder
     }
 }
 
