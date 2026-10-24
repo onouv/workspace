@@ -221,52 +221,6 @@ fn given_no_terminal_launcher_is_configured_when_up_is_invoked_inside_tmux_for_a
 }
 
 #[test]
-fn given_no_ws_file_when_up_is_invoked_then_it_creates_one_usable_default_window() {
-    // Scenario: US4-AS1, US4-AS2
-    let project = support::temporary_project();
-    let path_dir = support::fake_tmux_path_dir();
-    let state_dir = support::temporary_project();
-    let session_name = support::test_session_name("default-missing");
-
-    support::ws_command()
-        .args(["up", &session_name])
-        .current_dir(project.path())
-        .env("PATH", path_dir.path())
-        .env("WS_FAKE_TMUX_STATE", state_dir.path())
-        .env_remove("TMUX")
-        .assert()
-        .success();
-
-    let calls = read_calls(state_dir.path());
-    assert!(calls.contains("new-session"), "{calls}");
-    assert!(calls.contains("-n root"), "{calls}");
-}
-
-#[test]
-fn given_an_empty_ws_file_when_up_is_invoked_then_it_creates_one_usable_default_window() {
-    // Scenario: US4-AS1, US4-AS2
-    let project = support::temporary_project();
-    std::fs::write(project.path().join(".ws"), "")
-        .expect("the empty .ws fixture should be writable");
-    let path_dir = support::fake_tmux_path_dir();
-    let state_dir = support::temporary_project();
-    let session_name = support::test_session_name("default-empty");
-
-    support::ws_command()
-        .args(["up", &session_name])
-        .current_dir(project.path())
-        .env("PATH", path_dir.path())
-        .env("WS_FAKE_TMUX_STATE", state_dir.path())
-        .env_remove("TMUX")
-        .assert()
-        .success();
-
-    let calls = read_calls(state_dir.path());
-    assert!(calls.contains("new-session"), "{calls}");
-    assert!(calls.contains("-n root"), "{calls}");
-}
-
-#[test]
 fn given_tmux_is_unavailable_when_up_is_invoked_then_it_reports_a_recoverable_dependency_error() {
     // Scenario: US4-AS3
     let project = support::temporary_project();

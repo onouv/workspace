@@ -1,6 +1,6 @@
 //! Typed representation of a `.ws` workspace document.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
@@ -17,22 +17,6 @@ pub struct WorkspaceDefinition {
     pub version: u32,
     /// Ordered tmux windows.
     pub windows: Vec<WindowDefinition>,
-}
-
-impl WorkspaceDefinition {
-    /// Construct the documented one-window definition used by an empty `.ws` file.
-    pub fn default_for(_source_path: &Path) -> Self {
-        Self {
-            version: CURRENT_VERSION,
-            windows: vec![WindowDefinition {
-                name: "root".to_owned(),
-                path: ".".to_owned(),
-                command: None,
-                env: Default::default(),
-                panes: Vec::new(),
-            }],
-        }
-    }
 }
 
 /// A fully validated workspace with resolved paths and inherited environments.

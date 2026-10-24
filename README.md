@@ -24,8 +24,9 @@ ws up my-project
 
 - If a tmux session named `my-project` already exists, `ws` connects to it directly and never
   reads the local `.ws` file.
-- Otherwise, `ws` reads `.ws` in the current directory (or falls back to one default window if
-  it's missing or empty), validates it, and creates the session from it.
+- Otherwise, `ws` reads `.ws` in the current directory, validates it, and creates the session
+  from it. If `.ws` is missing or empty, `ws` first writes the default `.ws` (see
+  [Default workspace](#default-workspace)).
 - Outside tmux, `ws` attaches directly. From inside tmux, it preserves your current session and
   opens the target through a separate terminal client/window instead — see
   [Separate terminal launcher](#separate-terminal-launcher).
@@ -84,6 +85,22 @@ windows:
 - `env` values are inherited by descendant panes and can be overridden per pane; they are applied
   to the spawned process only, never written into tmux's own session-level environment table.
 - Relative paths resolve against the directory containing `.ws`.
+
+### Default workspace
+
+In a folder without `.ws`, `ws up` creates `.ws` with four windows and tells you on stderr:
+
+| Window | Runs |
+|--------|------|
+| `root` | your normal shell |
+| `file` | `yazi` |
+| `git` | `lazygit` |
+| `claude` | `claude` |
+
+All four start in the project folder. Edit the file freely; `ws` never overwrites a `.ws` that is
+not empty. An empty `.ws` is replaced with the default, with a warning. If the folder is read-only,
+`ws` starts the same four windows without a file. A program that is not installed shows "command
+not found" in its window. `ws help config` shows the exact default content.
 
 ## Commands
 

@@ -861,8 +861,8 @@ test do not exist yet, naming the `tasks.md` phase and task ids expected to clos
 | US3-AS4 | `tests/lifecycle.rs::given_an_existing_session_when_up_is_invoked_inside_tmux_then_it_opens_a_separate_terminal_and_preserves_the_current_client` |
 | US3-AS5 | `tests/lifecycle.rs::given_an_invalid_session_name_when_up_is_invoked_then_it_is_rejected_before_any_dependency_access` |
 | US3-AS6 | `tests/lifecycle.rs::given_the_target_session_race_is_lost_when_up_is_invoked_then_it_reconnects_instead_of_failing` |
-| US4-AS1 | `tests/lifecycle.rs::given_no_ws_file_when_up_is_invoked_then_it_creates_one_usable_default_window` |
-| US4-AS2 | `tests/lifecycle.rs::given_no_ws_file_when_up_is_invoked_then_it_creates_one_usable_default_window` |
+| US4-AS1 | Replaced by `specs/002-default` (US1, US2); 001 test retired |
+| US4-AS2 | Replaced by `specs/002-default` (US1, US2); 001 test retired |
 | US4-AS3 | `tests/lifecycle.rs::given_tmux_is_unavailable_when_up_is_invoked_then_it_reports_a_recoverable_dependency_error` |
 | US5-AS1 | `tests/tmux_integration.rs::given_the_canonical_document_when_up_is_invoked_then_every_window_and_pane_is_materialized_in_order` |
 | US5-AS2 | `tests/tmux_integration.rs::given_the_canonical_document_when_up_is_invoked_then_every_window_and_pane_is_materialized_in_order` |

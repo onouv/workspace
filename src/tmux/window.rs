@@ -75,8 +75,10 @@ fn create(
             session_name.into(),
         ]
     } else {
+        // `-d` keeps the first window selected (001 FR-011).
         vec![
             "new-window".into(),
+            "-d".into(),
             "-t".into(),
             format!("{}:", exact_session_target(session_name)).into(),
         ]
@@ -252,6 +254,25 @@ mod tests {
             .expect("materialization should succeed");
 
         assert_eq!(calls()[0][0], "new-window");
+    }
+
+    #[test]
+    fn given_an_additional_window_when_materialized_then_it_does_not_become_the_current_window() {
+        // 001 FR-011: the first window stays selected. Without `-d`, tmux makes each new window
+        // the current window, so the last declared window would be selected on attach.
+        let tmux = TmuxClient::with_runner(recording_runner as CommandRunner);
+        let window = ValidatedWindowDefinition {
+            name: "development".to_owned(),
+            path: "/project/app".into(),
+            command: None,
+            env: BTreeMap::new(),
+            panes: Vec::new(),
+        };
+
+        materialize(&tmux, "target", &window, WindowRole::Additional)
+            .expect("materialization should succeed");
+
+        assert!(calls()[0].contains(&"-d".to_owned()), "{:?}", calls()[0]);
     }
 
     #[test]

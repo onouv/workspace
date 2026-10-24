@@ -4,7 +4,10 @@ use std::fs;
 use std::path::Path;
 
 use crate::error::AppError;
+use crate::lifecycle::prepared_setup::PreparedSetup;
 use crate::lifecycle::session_name_source::SessionNameSource;
+use crate::lifecycle::setup_file;
+use crate::lifecycle::setup_source::SetupSource;
 use crate::session_name::derived_session_name::DerivedSessionName;
 use crate::terminal::TerminalContext;
 use crate::terminal::launcher::{TerminalLauncher, TerminalLauncherError};
@@ -47,7 +50,12 @@ pub fn execute(
         return connect(tmux, terminal_launcher, terminal, session_name);
     }
 
-    let definition = load_definition(project_dir)?;
+    let prepared = setup_file::prepare(project_dir);
+    // Show the line before tmux contact: outside tmux, attach blocks until the user detaches.
+    if let Some(notice) = prepared.notice() {
+        notifier.notify(&notice.to_string());
+    }
+    let definition = load_definition(&prepared)?;
     let plan = LaunchPlan::new(session_name.to_owned(), definition);
 
     match apply_launch_plan(tmux, &plan, project_dir) {
@@ -140,15 +148,21 @@ fn rollback_partial_session(tmux: &TmuxClient, session_name: &str) {
     }
 }
 
-/// Load and validate the project's `.ws` file.
+/// Load and validate the workspace that the setup-file step chose (002 FR-004, FR-009).
 ///
-/// A missing or empty file resolves to the documented default single-window workspace rather
-/// than an error.
+/// A file goes through the normal loader. The in-memory default parses the same default content
+/// with the `.ws` path, so `path: .` resolves to the project folder.
 fn load_definition(
-    project_dir: &Path,
+    prepared: &PreparedSetup,
 ) -> Result<ws::config::ValidatedWorkspaceDefinition, AppError> {
-    let config_path = project_dir.join(".ws");
-    ws::config::load(&config_path).map_err(map_config_error)
+    match prepared.source() {
+        SetupSource::File(path) => ws::config::load(path),
+        SetupSource::InMemoryDefault { source_path } => {
+            ws::config::parse(ws::config::DEFAULT_CONTENT, source_path)
+                .and_then(|definition| ws::config::validator::validate(definition, source_path))
+        }
+    }
+    .map_err(map_config_error)
 }
 
 fn connect(
@@ -369,8 +383,44 @@ mod tests {
         .expect("the missing session should be created");
 
         assert_eq!(
+            notifier.lines()[0],
+            "using session name `alpha` from the current folder"
+        );
+    }
+
+    #[test]
+    fn given_a_derived_name_and_no_ws_file_when_up_runs_then_the_file_message_follows_the_name_message()
+     {
+        let tmux = TmuxClient::with_runners(
+            "fake-tmux",
+            missing_then_created_runner as CommandRunner,
+            interactive_success as InteractiveRunner,
+        );
+        let launcher = RecordingLauncher::succeeding();
+        let notifier = RecordingNotifier::default();
+        let project = tempdir().expect("a temporary project directory should be available");
+        let derived = DerivedSessionName::derive(std::path::Path::new("/tmp/alpha"))
+            .expect("`alpha` is a usable folder name");
+
+        execute(
+            &tmux,
+            &launcher,
+            TerminalContext::outside_tmux_for_test(),
+            &notifier,
+            project.path(),
+            &SessionNameSource::Derived(derived),
+        )
+        .expect("the missing session should be created");
+
+        assert_eq!(
             notifier.lines(),
-            ["using session name `alpha` from the current folder"]
+            [
+                "using session name `alpha` from the current folder".to_owned(),
+                format!(
+                    "created {} with the default workspace",
+                    project.path().join(".ws").display()
+                ),
+            ]
         );
     }
 
@@ -394,10 +444,12 @@ mod tests {
         assert_eq!(launcher.call_count(), 1);
     }
 
+    /// Accepts every call that creates a session, so a project without `.ws` can start the four
+    /// default windows (002).
     fn missing_then_created_runner(_: &OsStr, args: &[OsString]) -> io::Result<Output> {
         match args.first().and_then(|arg| arg.to_str()) {
             Some("has-session") => output(failure_status(), b"can't find session"),
-            Some("new-session") => output(success_status(), b""),
+            Some("new-session" | "new-window" | "send-keys") => output(success_status(), b""),
             Some("attach-session") => output(success_status(), b""),
             _ => panic!("unexpected tmux invocation: {args:?}"),
         }

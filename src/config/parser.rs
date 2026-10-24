@@ -3,6 +3,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use super::default_content::DEFAULT_CONTENT;
 use super::validator;
 use super::workspace_definition::{ValidatedWorkspaceDefinition, WorkspaceDefinition};
 use yaml_serde::{Mapping, Value};
@@ -97,10 +98,14 @@ impl std::error::Error for ConfigError {
 pub(crate) const MAX_PANE_NESTING_DEPTH: usize = 32;
 
 /// Parse one `.ws` YAML document without performing external workspace effects.
+///
+/// A whitespace-only source is the default workspace: it parses [`DEFAULT_CONTENT`] (002).
 pub fn parse(source: &str, source_path: &Path) -> Result<WorkspaceDefinition, ConfigError> {
-    if source.trim().is_empty() {
-        return Ok(WorkspaceDefinition::default_for(source_path));
-    }
+    let source = if source.trim().is_empty() {
+        DEFAULT_CONTENT
+    } else {
+        source
+    };
 
     // The untyped `Value` tree is validated (including pane-nesting depth) before the typed,
     // recursively-deserializing parse below runs, so that an over-deep document is rejected here
@@ -359,19 +364,14 @@ pub(crate) fn validation_error(path: &Path, context: &str, message: String) -> C
 
 /// Load and fully validate a `.ws` file.
 ///
-/// A missing file is treated the same as an empty one, since the specification documents both
-/// as the default single-window workspace rather than an error.
+/// An empty file is the default workspace (see [`parse`]). A missing file is an `Io` error:
+/// `ws up` creates `.ws` before it loads it (002), so a missing file at this point means, for
+/// example, a broken symlink.
 pub fn load(source_path: &Path) -> Result<ValidatedWorkspaceDefinition, ConfigError> {
-    let source = match fs::read_to_string(source_path) {
-        Ok(source) => source,
-        Err(source) if source.kind() == std::io::ErrorKind::NotFound => String::new(),
-        Err(source) => {
-            return Err(ConfigError::Io {
-                path: source_path.to_path_buf(),
-                source,
-            });
-        }
-    };
+    let source = fs::read_to_string(source_path).map_err(|source| ConfigError::Io {
+        path: source_path.to_path_buf(),
+        source,
+    })?;
     let definition = parse(&source, source_path)?;
     validator::validate(definition, source_path)
 }

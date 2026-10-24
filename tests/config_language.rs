@@ -130,27 +130,24 @@ fn given_an_empty_document_when_loaded_then_the_documented_default_is_returned()
 
     let definition = load(&path).expect("an empty .ws should use the default workspace");
 
-    assert_eq!(definition.windows.len(), 1);
-    assert_eq!(definition.windows[0].name, "root");
-    assert_eq!(
-        definition.windows[0].path,
-        project.path().canonicalize().unwrap()
-    );
+    let names: Vec<_> = definition
+        .windows
+        .iter()
+        .map(|window| window.name.as_str())
+        .collect();
+    assert_eq!(names, ["root", "file", "git", "claude"]);
 }
 
 #[test]
-fn given_no_ws_file_when_loaded_then_the_documented_default_is_returned() {
-    // Scenario: US4-AS1
+fn given_no_ws_file_when_loaded_then_an_io_error_names_the_path() {
     let project = project_with_directories();
     let path = project.path().join(".ws");
 
-    let definition = load(&path).expect("a missing .ws should use the default workspace");
+    let error = load(&path).expect_err("a missing .ws is not a default workspace for the loader");
 
-    assert_eq!(definition.windows.len(), 1);
-    assert_eq!(definition.windows[0].name, "root");
-    assert_eq!(
-        definition.windows[0].path,
-        project.path().canonicalize().unwrap()
+    assert!(
+        matches!(&error, ConfigError::Io { path: error_path, .. } if *error_path == path),
+        "{error:?}"
     );
 }
 
@@ -250,6 +247,14 @@ fn given_the_published_schema_and_example_when_checked_for_drift_then_the_refere
 
     assert!(REFERENCE.contains(SCHEMA.trim()));
     assert!(REFERENCE.contains(CANONICAL_DOCUMENT.trim()));
+}
+
+#[test]
+fn given_the_published_reference_when_checked_for_drift_then_it_contains_the_default_content() {
+    // 002 FR-011: `ws help config` shows the default content.
+    const REFERENCE: &str = include_str!("../doc/config-lang.md");
+
+    assert!(REFERENCE.contains(ws::config::DEFAULT_CONTENT));
 }
 
 #[test]
