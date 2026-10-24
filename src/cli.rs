@@ -6,7 +6,7 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
     name = "ws",
     version,
     about = "Start and manage configured tmux workspaces",
-    after_help = "Examples:\n  ws up SESSION_NAME\n  ws change SESSION_NAME\n  ws help config\n  ws help clip",
+    after_help = "Examples:\n  ws up\n  ws up SESSION_NAME\n  ws change SESSION_NAME\n  ws help config\n  ws help clip",
     disable_help_subcommand = true,
     subcommand_required = false,
     arg_required_else_help = false
@@ -54,8 +54,11 @@ pub enum HelpTopic {
 #[derive(Debug, Args)]
 pub struct UpArgs {
     /// Name of the tmux session to create or connect to.
+    ///
+    /// Default: the current folder name, with `.` and `:` replaced by `_`. Without a name, `ws`
+    /// connects only to a session that belongs to the current folder.
     #[arg(value_name = "SESSION_NAME", value_parser = validate_session_name)]
-    pub session_name: String,
+    pub session_name: Option<String>,
 }
 
 /// Arguments for operations that target one tmux session.
@@ -88,19 +91,6 @@ pub struct ClipArgs {
 }
 
 fn validate_session_name(value: &str) -> Result<String, String> {
-    if value.trim().is_empty() {
-        return Err("session name must not be empty".to_owned());
-    }
-
-    if value.chars().any(char::is_control) {
-        return Err("session name must not contain control characters".to_owned());
-    }
-
-    // tmux reserves `:` and `.` to separate a session from a window or pane index in a target
-    // specifier, so a session name containing either could be misinterpreted by tmux itself.
-    if value.contains([':', '.']) {
-        return Err("session name must not contain ':' or '.'".to_owned());
-    }
-
+    crate::session_name::check(value).map_err(str::to_owned)?;
     Ok(value.to_owned())
 }

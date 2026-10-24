@@ -134,3 +134,20 @@ fn given_an_unknown_command_when_invoked_then_returns_helpful_stderr_error() {
         .stderr(predicate::str::contains("--help"))
         .stdout(predicate::str::is_empty());
 }
+
+#[test]
+fn given_missing_dependencies_when_requesting_up_help_then_session_name_is_optional_with_the_folder_default()
+ {
+    // Covers 003 FR-009 (help text). No acceptance scenario owns this check.
+    let project = temporary_project_with_invalid_config();
+
+    support::ws_command()
+        .args(["up", "--help"])
+        .current_dir(project.path())
+        .env("PATH", "/path/that/does/not/exist")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Usage: ws up [SESSION_NAME]"))
+        .stdout(predicate::str::contains("Default: the current folder name"))
+        .stderr(predicate::str::is_empty());
+}

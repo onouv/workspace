@@ -68,6 +68,34 @@ pub fn seed_fake_tmux_session(state_dir: &Path, name: &str) {
         .expect("the fake tmux session marker should be writable");
 }
 
+/// Pre-create a fake tmux session with a start directory and, optionally, the project folder that
+/// `ws` records in the `@ws-project-folder` session option.
+pub fn seed_fake_tmux_session_with_folder(
+    state_dir: &Path,
+    name: &str,
+    start_dir: &Path,
+    recorded: Option<&Path>,
+) {
+    let sessions_dir = state_dir.join("sessions");
+    std::fs::create_dir_all(&sessions_dir)
+        .expect("the fake tmux sessions directory should be creatable");
+    std::fs::write(
+        sessions_dir.join(name),
+        format!("{}\n\n", start_dir.display()),
+    )
+    .expect("the fake tmux session marker should be writable");
+    if let Some(recorded) = recorded {
+        let options_dir = state_dir.join("options").join(name);
+        std::fs::create_dir_all(&options_dir)
+            .expect("the fake tmux options directory should be creatable");
+        std::fs::write(
+            options_dir.join("@ws-project-folder"),
+            recorded.display().to_string(),
+        )
+        .expect("the fake tmux option should be writable");
+    }
+}
+
 /// Write a user-level `ws clip` mapping file under `home_dir/.config/ws/clip.yaml`.
 pub fn write_user_clip_mapping(home_dir: &Path, yaml: &str) {
     let config_dir = home_dir.join(".config").join("ws");

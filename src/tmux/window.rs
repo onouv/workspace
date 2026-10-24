@@ -4,11 +4,14 @@ use std::ffi::OsString;
 
 use ws::config::ValidatedWindowDefinition;
 
-use super::client::{TmuxClient, TmuxError};
+use super::client::{TmuxClient, TmuxError, exact_session_target};
 use super::pane;
+use super::session::PROJECT_FOLDER_OPTION;
+use super::window_role::WindowRole;
 
-/// Materialize one window: create it (as the session's own first window when `is_first`, or an
-/// additional window otherwise), then recursively materialize its pane tree.
+/// Materialize one window: create it (as the session's own first window for
+/// [`WindowRole::First`], or an additional window otherwise), then recursively materialize its
+/// pane tree.
 ///
 /// A window with no command of its own defers to its first declared pane exactly as a
 /// command-less pane defers to its own first child (see [`super::pane`]), so the window's
@@ -17,7 +20,7 @@ pub fn materialize(
     tmux: &TmuxClient,
     session_name: &str,
     window: &ValidatedWindowDefinition,
-    is_first: bool,
+    role: WindowRole<'_>,
 ) -> Result<(), TmuxError> {
     if window.command.is_none()
         && let Some(resolved) = pane::resolve_root(&window.panes)
@@ -29,7 +32,7 @@ pub fn materialize(
             &resolved.content.path,
             resolved.content.command.as_deref(),
             &resolved.content.env,
-            is_first,
+            role,
         )?;
         return pane::materialize(tmux, &anchor, resolved);
     }
@@ -41,7 +44,7 @@ pub fn materialize(
         &window.path,
         window.command.as_deref(),
         &window.env,
-        is_first,
+        role,
     )?;
     pane::materialize_group(tmux, &anchor, &window.panes)
 }
@@ -51,6 +54,10 @@ pub fn materialize(
 /// The session's first window is created together with the session itself (`new-session`);
 /// every later window is created with `new-window`. Both forms accept the same `-c`/`-e`/
 /// trailing-command shape, so only the leading tmux subcommand differs.
+///
+/// The first window also records the project folder in a session option. The `set-option` call
+/// is chained to `new-session` in the same tmux invocation, so no other client can see the new
+/// session without the option.
 fn create(
     tmux: &TmuxClient,
     session_name: &str,
@@ -58,9 +65,9 @@ fn create(
     path: &std::path::Path,
     command: Option<&str>,
     env: &std::collections::BTreeMap<String, String>,
-    is_first: bool,
+    role: WindowRole<'_>,
 ) -> Result<String, TmuxError> {
-    let mut args: Vec<OsString> = if is_first {
+    let mut args: Vec<OsString> = if matches!(role, WindowRole::First { .. }) {
         vec![
             "new-session".into(),
             "-d".into(),
@@ -71,7 +78,7 @@ fn create(
         vec![
             "new-window".into(),
             "-t".into(),
-            format!("{session_name}:").into(),
+            format!("{}:", exact_session_target(session_name)).into(),
         ]
     };
     args.push("-n".into());
@@ -85,6 +92,17 @@ fn create(
     args.push("-P".into());
     args.push("-F".into());
     args.push("#{pane_id}".into());
+    if let WindowRole::First { project_folder } = role {
+        args.extend([
+            ";".into(),
+            "set-option".into(),
+            "-t".into(),
+            // `set-option -t` takes a pane target; the trailing `:` makes `=NAME` a session.
+            format!("{}:", exact_session_target(session_name)).into(),
+            PROJECT_FOLDER_OPTION.into(),
+            project_folder.as_os_str().to_owned(),
+        ]);
+    }
     let output = tmux.execute(args)?;
     let pane_id = String::from_utf8_lossy(&output.stdout).trim().to_owned();
     if let Some(command) = command {
@@ -105,6 +123,13 @@ mod tests {
 
     use super::materialize;
     use crate::tmux::client::{CommandRunner, TmuxClient};
+    use crate::tmux::window_role::WindowRole;
+
+    fn first() -> WindowRole<'static> {
+        WindowRole::First {
+            project_folder: std::path::Path::new("/project"),
+        }
+    }
 
     thread_local! {
         static CALLS: RefCell<Vec<Vec<String>>> = const { RefCell::new(Vec::new()) };
@@ -171,13 +196,45 @@ mod tests {
             panes: Vec::new(),
         };
 
-        materialize(&tmux, "target", &window, true).expect("materialization should succeed");
+        materialize(&tmux, "target", &window, first()).expect("materialization should succeed");
 
         let calls = calls();
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0][0], "new-session");
         assert!(calls[0].contains(&"target".to_owned()));
         assert!(calls[0].contains(&"root".to_owned()));
+    }
+
+    #[test]
+    fn given_the_first_window_when_materialized_then_the_project_folder_is_recorded_in_the_same_call()
+     {
+        let tmux = TmuxClient::with_runner(recording_runner as CommandRunner);
+        let window = ValidatedWindowDefinition {
+            name: "root".to_owned(),
+            path: "/project/sub".into(),
+            command: None,
+            env: BTreeMap::new(),
+            panes: Vec::new(),
+        };
+
+        materialize(&tmux, "target", &window, first()).expect("materialization should succeed");
+
+        let calls = calls();
+        let chain = calls[0]
+            .iter()
+            .position(|arg| arg == ";")
+            .expect("a chained command");
+        assert_eq!(
+            calls[0][chain..],
+            [
+                ";",
+                "set-option",
+                "-t",
+                "=target:",
+                "@ws-project-folder",
+                "/project"
+            ]
+        );
     }
 
     #[test]
@@ -191,7 +248,8 @@ mod tests {
             panes: Vec::new(),
         };
 
-        materialize(&tmux, "target", &window, false).expect("materialization should succeed");
+        materialize(&tmux, "target", &window, WindowRole::Additional)
+            .expect("materialization should succeed");
 
         assert_eq!(calls()[0][0], "new-window");
     }
@@ -213,7 +271,8 @@ mod tests {
             panes: Vec::new(),
         };
 
-        materialize(&tmux, "target", &window, false).expect("materialization should succeed");
+        materialize(&tmux, "target", &window, WindowRole::Additional)
+            .expect("materialization should succeed");
 
         let calls = calls();
         assert_eq!(calls[0][0], "new-window");
@@ -221,7 +280,7 @@ mod tests {
             .iter()
             .position(|arg| arg == "-t")
             .expect("new-window should pass a -t target");
-        assert_eq!(calls[0][target_index + 1], "target:");
+        assert_eq!(calls[0][target_index + 1], "=target:");
     }
 
     #[test]
@@ -247,7 +306,7 @@ mod tests {
             ],
         };
 
-        materialize(&tmux, "target", &window, true).expect("materialization should succeed");
+        materialize(&tmux, "target", &window, first()).expect("materialization should succeed");
 
         let calls = calls();
         // Exactly 3 panes are created: the window itself (= `git`), then `logs`, then `shell`.

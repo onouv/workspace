@@ -30,6 +30,14 @@ pub enum TmuxError {
     InteractiveCommandFailed { status: String },
 }
 
+/// Return the tmux target that matches only the session named exactly `session_name`.
+///
+/// Without the `=` prefix, tmux falls back to a prefix match: `-t alpha` reaches `alphabet` when
+/// no `alpha` exists.
+pub fn exact_session_target(session_name: &str) -> String {
+    format!("={session_name}")
+}
+
 /// A small argv-safe client for the tmux executable.
 #[derive(Debug)]
 pub struct TmuxClient {
@@ -106,7 +114,8 @@ impl TmuxClient {
     ///
     /// This blocks until the user detaches, since it takes over the invoking process's stdio.
     pub fn attach(&self, session_name: &str) -> Result<(), TmuxError> {
-        self.run_interactive(["attach-session", "-t", session_name])
+        let target = exact_session_target(session_name);
+        self.run_interactive(["attach-session", "-t", target.as_str()])
     }
 
     /// Switch the current tmux client to `session_name` without changing any other client.
@@ -114,7 +123,7 @@ impl TmuxClient {
     /// Unlike [`Self::attach`], this only makes sense when the invoking process is already a
     /// tmux client (inside a pane); it returns immediately and does not take over stdio.
     pub fn switch_client(&self, session_name: &str) -> Result<(), TmuxError> {
-        self.execute(["switch-client", "-t", session_name])?;
+        self.execute(["switch-client", "-t", &exact_session_target(session_name)])?;
         Ok(())
     }
 
@@ -253,7 +262,7 @@ mod tests {
             [
                 OsString::from("attach-session"),
                 OsString::from("-t"),
-                OsString::from("target")
+                OsString::from("=target")
             ]
         );
         Ok(success_status())

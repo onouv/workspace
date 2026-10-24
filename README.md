@@ -30,6 +30,20 @@ ws up my-project
   opens the target through a separate terminal client/window instead — see
   [Separate terminal launcher](#separate-terminal-launcher).
 
+Without a session name, `ws` uses the name of the current folder:
+
+```bash
+cd ~/projects/my.project
+ws up            # session name: my_project
+```
+
+- `ws` replaces each `.` and `:` in the folder name with `_`. It shows the name on stderr.
+- If a session with that name exists and belongs to this folder, `ws` connects to it.
+- If the session belongs to a different folder with the same name, `ws` stops with exit
+  status 5. Give a session name to start a second workspace.
+- If the folder name cannot be a session name (for example, in `/`), `ws` stops with exit
+  status 2. Give a session name.
+
 ## The `.ws` file
 
 A `.ws` file is a small YAML document describing windows and (optionally) recursively split
@@ -75,7 +89,7 @@ windows:
 
 | Command | What it does |
 |---|---|
-| `ws up SESSION_NAME` | Create or reconnect to a workspace (see [Quick start](#quick-start)). |
+| `ws up [SESSION_NAME]` | Create or reconnect to a workspace. Without a name, the current folder name is the session name (see [Quick start](#quick-start)). |
 | `ws change SESSION_NAME` | Switch the current tmux client to an existing session, leaving the previous one running. Requires being inside tmux already; never reads `.ws`. |
 | `ws down SESSION_NAME --yes` | Kill a named session non-interactively. Without `--yes`, asks for interactive confirmation; refuses outright without a TTY. |
 | `ws exit` | Detach the current tmux client without killing its session. |

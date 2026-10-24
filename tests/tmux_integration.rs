@@ -267,7 +267,7 @@ fn given_a_pane_split_fails_partway_through_when_up_is_invoked_then_only_the_new
     assert!(calls.contains("new-session"), "{calls}");
     assert!(calls.contains("split-window"), "{calls}");
     assert!(
-        calls.contains(&format!("kill-session -t {session_name}")),
+        calls.contains(&format!("kill-session -t ={session_name}")),
         "the partially created session should be rolled back: {calls}"
     );
     assert!(
