@@ -320,6 +320,32 @@ mod tests {
     }
 
     #[test]
+    fn given_an_explicit_name_and_an_existing_session_when_up_runs_then_it_connects_without_a_notice_or_folder_check()
+     {
+        // `session_found_runner` panics on `list-sessions`, so a folder check would fail here.
+        let tmux = TmuxClient::with_runners(
+            "fake-tmux",
+            session_found_runner as CommandRunner,
+            interactive_success as InteractiveRunner,
+        );
+        let launcher = RecordingLauncher::succeeding();
+        let notifier = RecordingNotifier::default();
+        let project = tempdir().expect("a temporary project directory should be available");
+
+        execute(
+            &tmux,
+            &launcher,
+            TerminalContext::outside_tmux_for_test(),
+            &notifier,
+            project.path(),
+            &SessionNameSource::Explicit("target".to_owned()),
+        )
+        .expect("the existing session should be connected");
+
+        assert!(notifier.lines().is_empty(), "{:?}", notifier.lines());
+    }
+
+    #[test]
     fn given_a_derived_name_when_up_runs_then_the_notifier_shows_the_name_once() {
         let tmux = TmuxClient::with_runners(
             "fake-tmux",

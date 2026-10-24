@@ -102,13 +102,19 @@ uses `=NAME:` (not `=NAME`). The fake tmux now rejects a `set-option` target wit
 
 ### Tests
 
-- [ ] T031 [P] [US3] Test `given_folder_alpha_when_up_runs_with_beta_then_it_uses_beta_and_shows_no_message` (US3-AS1) in `tests/default_session_name.rs`
-- [ ] T032 [P] [US3] Test `given_an_empty_or_blank_explicit_name_when_up_runs_then_it_exits_2_and_does_not_derive` (US3-AS2) in `tests/default_session_name.rs`
+- [X] T031 [P] [US3] Test `given_folder_alpha_when_up_runs_with_beta_then_it_uses_beta_and_shows_no_message` (US3-AS1) in `tests/default_session_name.rs`
+- [X] T032 [P] [US3] Test `given_an_empty_or_blank_explicit_name_when_up_runs_then_it_exits_2_and_does_not_derive` (US3-AS2) in `tests/default_session_name.rs`
 
 ### Implementation
 
-- [ ] T033 [US3] Make sure that `Explicit` skips the notifier and the folder check in `src/lifecycle/up.rs`
-- [ ] T034 [US3] Update the 001 US3-AS5 test in `tests/lifecycle.rs`: keep the invalid-name case; make sure that no test treats a missing name as an error
+- [X] T033 [US3] Make sure that `Explicit` skips the notifier and the folder check in `src/lifecycle/up.rs`
+- [X] T034 [US3] Update the 001 US3-AS5 test in `tests/lifecycle.rs`: keep the invalid-name case; make sure that no test treats a missing name as an error
+
+Note: US3 keeps behavior from Phases 3–4, so T031/T032 passed at once. A mutation check
+(notice for every source) made T031 fail, so the test is sensitive. T033 is covered by
+`given_an_explicit_name_and_an_existing_session_when_up_runs_then_it_connects_without_a_notice_or_folder_check`
+in `src/lifecycle/up.rs`. T034 needed no change: the 001 US3-AS5 test checks only `bad:name`, and no
+test expects a missing name to fail.
 
 ---
 

@@ -216,3 +216,53 @@ fn given_plain_tmux_made_session_alpha_in_this_folder_when_up_runs_without_a_nam
     assert!(calls.contains("list-sessions"), "{calls}");
     assert!(calls.contains("attach-session -t =alpha"), "{calls}");
 }
+
+#[test]
+fn given_folder_alpha_when_up_runs_with_beta_then_it_uses_beta_and_shows_no_message() {
+    // Scenario: US3-AS1
+    let (_parent, folder) = project_folder_named("alpha");
+    let path_dir = support::fake_tmux_path_dir();
+    let state_dir = support::temporary_project();
+
+    support::ws_command()
+        .args(["up", "beta"])
+        .current_dir(&folder)
+        .env("PWD", &folder)
+        .env("PATH", path_dir.path())
+        .env("WS_FAKE_TMUX_STATE", state_dir.path())
+        .env_remove("TMUX")
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("using session name").not());
+
+    let calls = read_calls(state_dir.path());
+    assert!(session_exists(state_dir.path(), "beta"), "{calls}");
+    assert!(!session_exists(state_dir.path(), "alpha"), "{calls}");
+    assert!(!calls.contains("list-sessions"), "{calls}");
+}
+
+#[test]
+fn given_an_empty_or_blank_explicit_name_when_up_runs_then_it_exits_2_and_does_not_derive() {
+    // Scenario: US3-AS2
+    let (_parent, folder) = project_folder_named("alpha");
+    let path_dir = support::fake_tmux_path_dir();
+    let state_dir = support::temporary_project();
+
+    for explicit_name in ["", "   "] {
+        support::ws_command()
+            .args(["up", explicit_name])
+            .current_dir(&folder)
+            .env("PWD", &folder)
+            .env("PATH", path_dir.path())
+            .env("WS_FAKE_TMUX_STATE", state_dir.path())
+            .env_remove("TMUX")
+            .assert()
+            .failure()
+            .code(2)
+            .stderr(predicate::str::contains("session name must not be empty"))
+            .stderr(predicate::str::contains("using session name").not());
+    }
+
+    let calls = read_calls(state_dir.path());
+    assert!(calls.is_empty(), "no tmux command should run: {calls}");
+}
