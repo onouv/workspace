@@ -252,25 +252,24 @@ make a session with an unexpected name or fail without a reason (constitution II
 
 ## Traceability
 
-Each acceptance scenario has a stable `US<story>-AS<n>` id (constitution IV). All scenarios are
-**Pending** until `/speckit.tasks` gives each scenario a test. This feature changes the
-missing-name part of 001 US3-AS5. When this feature is implemented, update the 001 test for that
-scenario so that it does not test a missing name.
+Each acceptance scenario has a stable `US<story>-AS<n>` id (constitution IV). Each scenario has
+exactly one owning test (table below). This feature changes the missing-name part of 001 US3-AS5.
+The 001 test for that scenario tests only an invalid name, so it needs no change.
 
 | Scenario | Owning test / status |
 |----------|----------------------|
-| US1-AS1 | Pending |
-| US1-AS2 | Pending |
-| US1-AS3 | Pending |
-| US2-AS1 | Pending |
-| US2-AS2 | Pending |
-| US2-AS3 | Pending |
-| US2-AS4 | Pending |
-| US3-AS1 | Pending |
-| US3-AS2 | Pending |
-| US4-AS1 | Pending |
-| US4-AS2 | Pending |
-| US4-AS3 | Pending |
+| US1-AS1 | `tests/default_session_name.rs::given_no_session_alpha_when_up_runs_without_a_name_in_alpha_then_it_creates_session_alpha` |
+| US1-AS2 | `tests/default_session_name.rs::given_no_session_when_up_runs_without_a_name_then_stderr_names_the_derived_session_and_stdout_does_not` |
+| US1-AS3 | `tests/default_session_name.rs::given_the_user_is_inside_tmux_when_up_runs_without_a_name_then_it_opens_a_separate_terminal` |
+| US2-AS1 | `tests/default_session_name.rs::given_session_alpha_belongs_to_this_folder_when_up_runs_without_a_name_outside_tmux_then_it_attaches_without_reading_ws` |
+| US2-AS2 | `tests/default_session_name.rs::given_session_alpha_belongs_to_this_folder_when_up_runs_without_a_name_inside_tmux_then_it_opens_a_separate_terminal` |
+| US2-AS3 | `tests/default_session_name.rs::given_session_alpha_belongs_to_another_folder_when_up_runs_without_a_name_then_it_exits_5_and_does_not_connect` |
+| US2-AS4 | `tests/default_session_name.rs::given_plain_tmux_made_session_alpha_in_this_folder_when_up_runs_without_a_name_then_it_attaches` |
+| US3-AS1 | `tests/default_session_name.rs::given_folder_alpha_when_up_runs_with_beta_then_it_uses_beta_and_shows_no_message` |
+| US3-AS2 | `tests/default_session_name.rs::given_an_empty_or_blank_explicit_name_when_up_runs_then_it_exits_2_and_does_not_derive` |
+| US4-AS1 | `tests/default_session_name.rs::given_the_filesystem_root_when_up_runs_without_a_name_then_it_exits_2_before_contacting_tmux` |
+| US4-AS2 | `tests/default_session_name.rs::given_folder_my_project_with_a_dot_when_up_runs_without_a_name_then_it_creates_session_my_underscore_project` |
+| US4-AS3 | `tests/default_session_name.rs::given_a_blank_or_control_character_folder_name_when_up_runs_without_a_name_then_it_exits_2_before_contacting_tmux` |
 
 ## Clarifications
 

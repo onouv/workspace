@@ -55,7 +55,8 @@ pub enum HelpTopic {
 pub struct UpArgs {
     /// Name of the tmux session to create or connect to.
     ///
-    /// Default: the current folder name, with `.` and `:` replaced by `_`.
+    /// Default: the current folder name, with `.` and `:` replaced by `_`. Without a name, `ws`
+    /// connects only to a session that belongs to the current folder.
     #[arg(value_name = "SESSION_NAME", value_parser = validate_session_name)]
     pub session_name: Option<String>,
 }

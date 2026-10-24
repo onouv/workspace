@@ -140,12 +140,20 @@ replacement) made T036 fail. T038 needed no change: the `DeriveError` messages m
 
 ## Phase 7: Polish
 
-- [ ] T039 [P] Update `ws up` help and the examples in `src/cli.rs` (FR-009); add a help test in `tests/cli_help.rs`
-- [ ] T040 [P] Update `README.md` (quick start, command table) for `ws up [SESSION_NAME]`
-- [ ] T041 [P] Disposable-tmux test in `tests/tmux_integration.rs`: a `.ws` with first window `path: ./sub`, then `ws up` twice without a name, connects (R4)
-- [ ] T042 Fill the Traceability table in `specs/003-default-session-name/spec.md` with the owning tests
-- [ ] T043 Run gates: `cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`, `cargo test --all-targets --all-features`
-- [ ] T044 Run the manual checks in `specs/003-default-session-name/quickstart.md`
+- [X] T039 [P] Update `ws up` help and the examples in `src/cli.rs` (FR-009); add a help test in `tests/cli_help.rs`
+- [X] T040 [P] Update `README.md` (quick start, command table) for `ws up [SESSION_NAME]`
+- [X] T041 [P] Disposable-tmux test in `tests/tmux_integration.rs`: a `.ws` with first window `path: ./sub`, then `ws up` twice without a name, connects (R4)
+- [X] T042 Fill the Traceability table in `specs/003-default-session-name/spec.md` with the owning tests
+- [X] T043 Run gates: `cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`, `cargo test --all-targets --all-features`
+- [X] T044 Run the manual checks in `specs/003-default-session-name/quickstart.md`
+
+Notes:
+- T041 lives in the new file `tests/real_tmux.rs`, not in `tests/tmux_integration.rs` (that file
+  uses the fake tmux). It uses a private socket through `TMUX` and skips when tmux is missing (CI
+  has no tmux). A mutation check (set-option target `=NAME` without `:`) made it fail.
+- T044 ran quickstart steps 2–7 on a private real tmux server with the fake launcher instead of
+  attach. All results matched. Attach in a real terminal outside tmux is a manual check for the
+  user.
 
 ---
 
